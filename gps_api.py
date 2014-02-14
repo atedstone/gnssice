@@ -275,8 +275,8 @@ class Geod:
     
     def __init__(self):
         self.keys = ['YY','DOY','Seconds','Latitude','Longitude','Height','SigN',
-                    'SigE','SigH','RMS','#','Atm','Atm+-','Fract DOY','Epoch',
-                    '#BF','NotF','NotFK','North','East','Set']
+                    'SigE','SigH','RMS','Hash','Atm','AtmPlusMinus','Fract DOY','Epoch',
+                    'HashBF','NotF','North','East','Up','Set']
     
               
     def load_geod(self,filename,start_year,columns=False):
@@ -304,6 +304,7 @@ class Geod:
         data.index = as_datetime
         # Drop the fract doy, no longer needed
         data = data.drop('Fract DOY',1)
+        columns.remove('Fract DOY')
         
         return data
         
