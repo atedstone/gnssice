@@ -22,6 +22,7 @@ import math
 from copy import deepcopy
 from ajtuseful import *
 from doy import *
+from scipy import stats
 
 class gpsm:
     """ GPS manipulation functionality - load data, re-index timestamps ...
@@ -307,5 +308,34 @@ class Geod:
         columns.remove('Fract DOY')
         
         return data
+     
+     
+     
+def rotate(data):
+    """
+    Rotate projected (m) North and East coordinates to along and 
+    across-flow components.
+    
+    Inputs:
+        data : tsseries pd.DataFrame with at columns East, North; others dropped.
+    Returns:
+        pd.DataFrame with columns Along & Across
+    
+    """
+    
+    # Get rid of NaNs so that linregress will work
+    data_nonans = data.dropna()   
+    # Find the fit and direction
+    fit = stats.linregress(data_nonans['East'],data_nonans['North'])
+    direction = math.atan(fit[0])
+    
+    # Do the rotation
+    R = np.array([[math.cos(-direction),-math.sin(-direction)],[math.sin(-direction),math.cos(-direction)]])
+    rotated = R.dot(np.array([data['East'],data['North']])).T
+    
+    # Save back to dataframe
+    rotated = pd.DataFrame(rotated,index=data.index,columns=['Along','Across'])
+    
+    return rotated
         
         
