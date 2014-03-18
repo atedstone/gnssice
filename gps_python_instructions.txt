@@ -46,16 +46,13 @@ http://chandler.mit.edu/~simon/gtgk/script_help.htm
 More about Track:
 http://geoweb.mit.edu/~tah/track_example/
 
-If you haven't already got them, check-out the python scripts from the glaciology repo.
-You'll need these projects:
-	pygps
-	utils
-Put them on your networked storage e.g. /home/<USER>/pyscripts/. 
-The projects need to be put on your python path:
+If you haven't already got it, clone the pygps project from Andrew Tedstone's bitbucket (atedstone) to your networked storage e.g. /home/<USER>/pyscripts/ (e.g. via SSH protocol):
+	git clone ssh://git@bitbucket.org/atedstone/pygps.git
+The project needs to be put on your python path:
  - Make sure you can see hidden files and folders.
  - Open /home/<USER>/.bashrc for editing.
  - Add the following (e.g.):
-		PYTHONPATH="${PYTHONPATH}:/home/<USER>/pyscripts/pygps/:/home/<USER>/pyscripts/utils/"
+		PYTHONPATH="${PYTHONPATH}:/home/<USER>/pygps/"
 		export PYTHONPATH
  - Save and close.
 This means that it won't matter where you then do your main working - Python will automatically find the scripts. 
@@ -63,9 +60,11 @@ This means that it won't matter where you then do your main working - Python wil
 Set up a working directory in your scratch space, e.g. /scratch/<USER>/gps_workspace_<YEAR>/.
  - You'll probably want to clear up as you go, otherwise you'll end up with loads of files, e.g. once the leica files have been converted to rinex, delete the leica files, and so on. The scripts purposefully do not try to clean up.
  
-In this working directory, check-out the GPS configuration files from the glaciology repo, ensuring that the files land up in a subdirectory called gps_config, i.e.:
+In this working directory, clone the GPS configuration files, ensuring that the files land up in a subdirectory called gps_config, i.e. (via SSH protocol):
 
-	svn co https://svn-kerberos.ecdf.ed.ac.uk/repo/geos/glaciology/gps_config/trunk gps_config
+	git clone ssh://git@bitbucket.org/atedstone/lev_gps_config.git gps_config
+
+(Alternatively, if setting up processing for a new field campaign in a different location, you may wish to clone this project elsewhere and use the files as templates for your own parameter files to create your own gps_config folder, which you can then version-control if you wish.)
 	
 pygps will then look for track cmd files and rover-specific configuration files in this location. If you modify these files, particularly the rover-specific ones, be sure to commit your changes back to the repository once you are done.
 
@@ -98,7 +97,7 @@ In general the functions have been designed to be non-interactive. They can ther
 
 Some of the provided interface scripts to the classes are interactive (e.g. process_rinex, process_dgps) but these could be revised for automated batch processing as they simply ask the user to input the arguments that are then passed on to the classes.
 
-RinexConvert has been developed with Leica 530 and 1200 receivers in mind. Some functionality works with other receivers, e.g. window_overlap works with Trimble dat files.
+RinexConvert has been developed with Leica 530 and 1200 receivers in mind. Some functionality works with other receivers, e.g. window_overlap works with Trimble dat files (but not .T00/.T01).
 
 Some critical functions have been enabled to take advantage of python's command line functionality, i.e.
 	python -m gps <function name> <arguments>
@@ -193,6 +192,11 @@ Make sure you create rinex files for each site (i.e. run the script for each sit
 
 Do the kinematic processing
 ---------------------------
+
+Pre-requisites:
+	- Firstly, make sure you have appropriate .cmd files for your base station site. These are already available for the leverett transect (track_levb.cmd and track_kely.cmd, in lev_gps_config). My initial recommendation for shorter baselines with 10-15sec sampling would be to use track_levb.cmd as a template. For longer baselines with sparser sampling, use track_kely.cmd as a template.
+	- Secondly, open pygps/process_dgps.py and ensure that the default parameters for processing with you base station are set up - follow the format in the file. Again, set initial values based on my recommendation above, unless you've more specific information to go on... 
+
 Open a terminal window at the scratch location. 
 ***If using PuTTY make sure you also have Xming working - for figure windows.***
 
@@ -215,6 +219,9 @@ In 2012 I had problems with coordinates from the above website. However, teqc es
 A number of additional arguments are hard-set in the cmd files created for each base station, (e.g. levb, kely), e.g. site_stats and bf_set. These probably don't need to be modified from their default values...
 
 By default, track is set up to accept the day's results automatically if the Spearman coefficient between East and North exceeds the specified threshold. If the day fails the test, the script will ask you what action to take next.
+
+You can change the value of the specified threshold at runtime by setting it in process_dgps.py as follows:
+	k.track_spearman_threshold = 0.66
 
 Track can also be set up to require the user to accept every day manually - provide use_auto_qa=False as an argument to the call to gps.Kinematic.track in process_dgps. 
 
