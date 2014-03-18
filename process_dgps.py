@@ -8,7 +8,6 @@ Created on Thu Feb 16 10:52:10 2012
 """
 
 import gps
-import ajtuseful as u
 k = gps.Kinematic()
 
 # If you want to set this interactively, set value to None.
@@ -44,7 +43,7 @@ doy_end = int(raw_input("End on day: "))
 print "Enter apriori coordinates only if track has not already been run for \
 the day previous to the one you want to start on."
 if k.apriori == None:
-    if u.confirm("Enter apriori coordinates?",resp=True):
+    if gps.confirm("Enter apriori coordinates?",resp=True):
         apr_x = float(raw_input("APR X: ")) 
          # track can't cope with -ve sign being provided on command line, hence
          # it has to be provided in cmd file.
