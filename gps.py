@@ -10,6 +10,7 @@ PostProcess -- concatenation of Track output files, conversion to NEU, etc.
 Functions:
 shellcmd -- used to run subprocesses through shell.
 neighborhood -- search behind/current/ahead in list simulataneously (generator).
+confirm -- Prompt for yes/no response from user.
 
 Pre-requisites:
 As well as all required module imports, TEQC/Gamit/Track must be available
@@ -53,8 +54,6 @@ import math
 import logging
 import os
 import xml.etree.ElementTree as etree
-
-import ajtuseful as u
 
 
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
@@ -115,6 +114,48 @@ def neighborhood(iterable):
         prev = item
         item = next
     yield (prev,item,None)
+
+
+def confirm(prompt=None, resp=False):
+    """prompts for yes or no response from the user. Returns True for yes and
+    False for no.
+
+    'resp' should be set to the default value assumed by the caller when
+    user simply types ENTER.
+
+    >>> confirm(prompt='Create Directory?', resp=True)
+    Create Directory? [y]|n: 
+    True
+    >>> confirm(prompt='Create Directory?', resp=False)
+    Create Directory? [n]|y: 
+    False
+    >>> confirm(prompt='Create Directory?', resp=False)
+    Create Directory? [n]|y: y
+    True
+    
+    From http://code.activestate.com/recipes/541096-prompt-the-user-for-confirmation/
+
+    """
+    
+    if prompt is None:
+        prompt = 'Confirm'
+
+    if resp:
+        prompt = '%s [%s]|%s: ' % (prompt, 'y', 'n')
+    else:
+        prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
+        
+    while True:
+        ans = raw_input(prompt)
+        if not ans:
+            return resp
+        if ans not in ['y', 'Y', 'n', 'N']:
+            print 'please enter y or n.'
+            continue
+        if ans == 'y' or ans == 'Y':
+            return True
+        if ans == 'n' or ans == 'N':
+            return False    
 
     
 class RinexConvert:
@@ -591,7 +632,7 @@ class Kinematic:
                 
                 # Do manual quality check if automatic not on or if automatic test failed.
                 if use_auto_qa == False or (use_auto_qa == True and keep == False):
-                    keep = u.confirm("Keep these results? (press Enter to accept, n to reject ",resp=True)
+                    keep = confirm("Keep these results? (press Enter to accept, n to reject ",resp=True)
                     if keep == False:
                         print "Day rejected."
                     comment = raw_input("Comment for logging (optional): ")
