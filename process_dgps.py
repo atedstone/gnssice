@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/python
 """
 Set up session for Leverett GPS track processing.
 

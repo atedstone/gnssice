@@ -57,6 +57,9 @@ The project needs to be put on your python path:
  - Save and close.
 This means that it won't matter where you then do your main working - Python will automatically find the scripts. 
 
+Ensure that gps.py, process_rinex.py and process_dgps.py are executable - e.g.:
+	chmod u+x <file_name>
+
 Set up a working directory in your scratch space, e.g. /scratch/<USER>/gps_workspace_<YEAR>/.
  - You'll probably want to clear up as you go, otherwise you'll end up with loads of files, e.g. once the leica files have been converted to rinex, delete the leica files, and so on. The scripts purposefully do not try to clean up.
  
@@ -143,11 +146,11 @@ Use a terminal window (e.g. PuTTY) to do the following....
 
 1. Get the orbit files:
 
-	 python -m gps get_orbits <year> <start doy> <end doy>
+	 gps.py get_orbits <year> <start doy> <end doy>
 	 
    N.b. don't attempt this over a change in year, e.g. start of 360 and end of 4. Instead do two calls, e.g.
-	 python -m gps get_orbits 2011 360 365
-	 python -m gps get_orbits 2012 1 4
+	 gps.py get_orbits 2011 360 365
+	 gps.py get_orbits 2012 1 4
    The only problem will then be that days 365 and 1 don't contain the next and previous days data respectively.
    Just copy and paste from the relevant files into the next, or on unix command line use cat, e.g:
 		cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
@@ -164,7 +167,7 @@ Use a terminal window (e.g. PuTTY) to do the following....
 	If files have *.<yy>o suffix you're all set, otherwise...	
  b. If they are zipped, unzip the compressed rinex files using 7zip or whatever
  c. Then convert to normal rinex i.e. from *.10d to *.10o:
-	    python -m gps crx2rnx <suffix, e.g. 10d>
+	    gps.py crx2rnx <suffix, e.g. 10d>
  d. Overlap/window the kellyville rinex files:
       See 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
 		
@@ -182,7 +185,7 @@ There's two possibilities, depending on whether the data were saved to daily fil
 Both are addressed by one script...
 Run this command:
 
-	python -m process_rinex
+	process_rinex.py
 	
 Follow on-screen instructions. Be aware that if you're processing from one big leica file you'll be asked to specify the start and end dates. The processing will then commence and will tell you what it is doing. You can wander off, it shouldn't need your attention.
 
@@ -195,14 +198,14 @@ Do the kinematic processing
 
 Pre-requisites:
 	- Firstly, make sure you have appropriate .cmd files for your base station site. These are already available for the leverett transect (track_levb.cmd and track_kely.cmd, in lev_gps_config). My initial recommendation for shorter baselines with 10-15sec sampling would be to use track_levb.cmd as a template. For longer baselines with sparser sampling, use track_kely.cmd as a template.
-	- Secondly, open pygps/process_dgps.py and ensure that the default parameters for processing with you base station are set up - follow the format in the file. Again, set initial values based on my recommendation above, unless you've more specific information to go on... 
+	- Secondly, open pygps/process_dgps.py and ensure that the default parameters for processing with your base station are set up - follow the format in the file. Again, set initial values based on my recommendation above, unless you've more specific information to go on... 
 
 Open a terminal window at the scratch location. 
 ***If using PuTTY make sure you also have Xming working - for figure windows.***
 
 Run:
 	
-	python -m process_dgps
+	process_dgps.py
 	
 You don't have to process an entire site in one session. Enter the start day and guesstimate an appropriate end day. If you get fed up before the end day is reached, do CTRL+C to break out/halt the process (preferably between processing two days of data, rather than during).
 
@@ -358,12 +361,12 @@ E.g.:
 By doing this, you create files associated with each base, which the script will find when it looks through the <concatenate> list.
 
 Now, run:
-		python -m concatenate_geod <rover>
+		gps.py concatenate_geod <rover>
 		
 The script will find the configuration file. Basically you'll first concatenate just this years data. Check the plots which result. Use this script iteratively to work out which corrections to add to the config file.
 
 Once happy with the corrections, you can add this years data to the existing GEOD dat file. Run:
-  python -m gps concatenate_geod <rover> <path and filename of GEOD dat file>
+  gps.py concatenate_geod <rover> <path and filename of GEOD dat file>
 
 N.b. if processing spring data, where re-drills are right at the end of last year's already processed data, it might make sense to skip running on just the new data, and include the existing data immediately instead.
   

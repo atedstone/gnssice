@@ -1,3 +1,4 @@
+#!/usr/bin/python
 """
 Convert leica mdb files to daily windowed rinex files, in preparation for
 kinematic processing using track.

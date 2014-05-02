@@ -1,3 +1,4 @@
+#!/usr/bin/python
 """GPS Processing classes
 University of Edinburgh Glaciology/Greenland Research Group
 
