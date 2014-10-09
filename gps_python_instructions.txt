@@ -46,6 +46,12 @@ http://chandler.mit.edu/~simon/gtgk/script_help.htm
 More about Track:
 http://geoweb.mit.edu/~tah/track_example/
 
+
+Create a symlink to gamit as follows:
+	
+	ln -s /usr/geos/gamit_globk/10.4 ~/gg 
+
+
 If you haven't already got it, clone the pygps project from Andrew Tedstone's bitbucket (atedstone) to your networked storage e.g. /home/<USER>/pyscripts/ (e.g. via SSH protocol):
 	git clone ssh://git@bitbucket.org/atedstone/pygps.git
 The project needs to be put on your python path:
