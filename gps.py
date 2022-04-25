@@ -1,6 +1,5 @@
 #!/usr/bin/python
-"""GPS Processing classes
-University of Edinburgh Glaciology/Greenland Research Group
+"""Kinematic GPS Processing
 
 Classes:
 RinexConvert -- functionality for converting raw leica mdb files to the 
@@ -16,8 +15,6 @@ confirm -- Prompt for yes/no response from user.
 Pre-requisites:
 As well as all required module imports, TEQC/Gamit/Track must be available
 in the environment.
-On burn.geos.ed.ac.uk:
-    module load applications/gamit/10.4
 
 More information:
 See the instruction file gps_python_instructions.txt.
@@ -30,9 +27,11 @@ OUTSTANDING ISSUES (at 15 Nov 2012):
     
     Can be problems with producing NEU plots after concatenate_GEOD has run.
 
+HISTORY
 Created on Thu Feb 02 10:50:25 2012 
+2022-04: Upgrade to Py3. Some refactoring to Pandas.
 
-@author: Andrew Tedstone (a.j.tedstone@ed.ac.uk)
+@author: Andrew Tedstone (andrew.tedstone@unifr.ch)
 
 """
 try:
@@ -84,7 +83,7 @@ def shellcmd(cmd,timeout_seconds=False,retry_n=2):
             except subprocess.TimeoutExpired:
                 if retry_count < retry_n:
                     retry = True
-                    print 'Process timed out. Retrying...'
+                    print('Process timed out. Retrying...')
                 else:
                     stdout = "Process timed out."
                     stderr = "Process timed out."
@@ -153,9 +152,9 @@ def confirm(prompt=None, resp=False):
         if ans not in ['y', 'Y', 'n', 'N']:
             print 'please enter y or n.'
             continue
-        if ans == 'y' or ans == 'Y':
+        if ans.lower() == 'y':
             return True
-        if ans == 'n' or ans == 'N':
+        if ans.lower() == 'n':
             return False    
 
     
@@ -164,12 +163,11 @@ class RinexConvert:
     
     def __init__(self):
         """Initialise class variables."""
-        #print "Welcome to the UoE CRG Leica-Rinex processing class."
-        self.institution = "University of Edinburgh"
+        self.institution = "University of Fribourg"
         self.observer = "Andrew Tedstone"
         
 
-    def leica2rinex(self,input_file,site,output_file):
+    def leica2rinex(self, input_file, site, output_file):
         """Convert a leica mdb file to a rinex file. A simple wrapper to teqc.
         
         Whilst this will convert very large single mdb files, be aware
@@ -180,10 +178,10 @@ class RinexConvert:
         cmd = "teqc -leica mdb -O.o '" + self.observer + "' -O.ag '" + \
         self.institution + "' " + input_file + " > " + output_file
         status = shellcmd(cmd)
-        print status
+        print(status)
                 
     
-    def leica_joindaily(self,input_file_prefix,site,moving=1):
+    def leica_joindaily(self, input_file_prefix, site,moving=1):
         """Convert daily leica files to rinex and join together into one big file.
         
         If the series of files contain data from more than one year, one big
@@ -219,13 +217,13 @@ class RinexConvert:
             rinex_st = shellcmd("teqc ++config " + fn + " | grep '\-O\.st\[art\]' -a")
             if rinex_st['stderr'] != '':
                 if rinex_st['stderr'].find("Notice") < 0:
-                    print "Couldn't grep start from ++config: " + rinex_st['stderr'] + ', continuing...'
+                    print("Couldn't grep start from ++config: " + rinex_st['stderr'] + ', continuing...')
                     problems.append(fn)
                     continue
             rinex_st = rinex_st['stdout']
             doy = datetime.datetime(int(rinex_st[11:15]),int(rinex_st[16:18]),
                                     int(rinex_st[19:21])).timetuple().tm_yday
-            print fn + " (day " + str(doy) + ")"
+            print(fn + " (day " + str(doy) + ")")
             # Update list of years to make large files from
             if int(rinex_st[13:15]) not in years:
                 years.append(int(rinex_st[13:15]))
@@ -235,25 +233,25 @@ class RinexConvert:
             "' -O.ag '" + self.institution + "' -O.mov " + str(moving) + " " + fn + " > " + output_fn
             status = shellcmd(cmd)
             if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
-                print "Teqc conversion failed: " + status['stderr'] + ', continuing...'
+                print("Teqc conversion failed: " + status['stderr'] + ', continuing...')
                 problems.append(fn)
             else:
-                print "   ...processed"            
+                print ("   ...processed")            
             
         # Combine all files into one for each year
-        print "Starting to join rinex files together. This might take a while."
+        print("Starting to join rinex files together. This might take a while.")
         joined_files = []
         for y in years:
             fn = "all_" + site + "." + str(y) + "o"
             cmd = "teqc " + site + "_*." + str(y) + "o > " + fn
             status = shellcmd(cmd)
-            print status['stdout']
-            print status['stderr']
+            print(status['stdout'])
+            print(status['stderr'])
             joined_files.append(fn)
             
         if len(problems) > 0:
-            print "There were problems processing some files, \
-            check list of returned filenames."
+            print("There were problems processing some files, \
+            check list of returned filenames.")
        
         toret = {}
         toret['problems'] = problems
@@ -307,13 +305,13 @@ class RinexConvert:
             # Extract information about the file.
             status = shellcmd("teqc " + add_leica + "++config " + input_file + " | grep '\-O\.mo\[nument\]' -a")
             if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
-                print status['stderr']
+                print(status['stderr'])
                 return
             ret = status['stdout']
             site = ret[15:19].lower()
             status = shellcmd("teqc " + add_leica + "++config " + input_file + " | grep '\-O\.st\[art\]' -a")
             if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
-                print status['stderr']
+                print(status['stderr'])
                 return
             start_date = status['stdout']
             
@@ -323,7 +321,7 @@ class RinexConvert:
             
             status = shellcmd("teqc " + add_leica + "++config " + input_file + " | grep '\-O\.e\[nd\]' -a")
             if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
-                print status['stderr']
+                print(status['stderr'])
                 return
             end_date = status['stdout']
             end_date = datetime.datetime(int(end_date[11:15]),
@@ -333,24 +331,24 @@ class RinexConvert:
         start_doy = start_date.timetuple().tm_yday
         end_doy = end_date.timetuple().tm_yday
         
-        print "Commencing windowing on " + input_file
-        print "This file begins on " + start_date.strftime("%Y.%m.%d (DOY %j)")
-        print "and ends on " + end_date.strftime("%Y.%m.%d (DOY %j)")
+        print("Commencing windowing on " + input_file)
+        print("This file begins on " + start_date.strftime("%Y.%m.%d (DOY %j)"))
+        print("and ends on " + end_date.strftime("%Y.%m.%d (DOY %j)"))
         
         cal_date = start_date - datetime.timedelta(days=1)
         for doy in range(start_doy,end_doy + 1):
-            print "Processing day " + str(doy)
+            print("Processing day " + str(doy))
             
             cmd = "teqc " + add_leica + "-st " + cal_date.strftime("%Y%m%d") + str(st_offset) + " +dh " + \
             str(dh) + " " + input_file + " > " + site + "_" + str(doy).zfill(3) + "0_ol." + \
             cal_date.strftime("%y") + "o"
-            print "    " + cmd
+            print("    " + cmd)
             status = shellcmd(cmd)
             if status['stderr'] != 'None' and status['stderr'].find("Notice") == False:
-                print "         " + status['stderr']
+                print("         " + status['stderr'])
             # Increment date.
             cal_date = cal_date + datetime.timedelta(days=1)
-        print "Done."
+        print("Done.")
         
         
        
@@ -383,13 +381,13 @@ class Kinematic:
         end_doy = int(end_doy)
         n_days = end_doy - start_doy + 1 
         if n_days < 0:
-            print "It looks like you've entered the number of days to download, not the end day. You need to specify the end day. Exiting..."
+            print("It looks like you've entered the number of days to download, not the end day. You need to specify the end day. Exiting...")
             return
         shellcmd("mkdir sp3_dl")
         status = shellcmd("cd sp3_dl ; sh_get_orbits -archive sopac -yr " + str(year) + " -doy " + 
         str(start_doy) + " -ndays " + str(n_days) + " -makeg no")
-        print status['stdout']
-        print status['stderr']
+        print(status['stdout'])
+        print(status['stderr'])
         
         status = shellcmd("ls sp3_dl/*.sp3")
         files = st.split(status['stdout'],"\n")
@@ -407,21 +405,21 @@ class Kinematic:
             try:
                 fn = open(newfn)
                 fn.close()
-                print "File for doy " + str(doy) + "already exists, skipping"
+                print("File for doy " + str(doy) + "already exists, skipping")
                 continue
             except IOError:
                 cmd = "cat " + prev + " " + item + " " + nex + \
                 " > " + newfn
-                print cmd
+                print(cmd)
                 shellcmd(cmd)  
             doy = doy + 1
         
         if clearup == True:
-            print "Clearing up..."
+            print("Clearing up...")
             shellcmd("rm -r sp3_dl")
             shellcmd("mv cat_sp3/* .")
             shellcmd("rm -r cat_sp3")
-        print "Done."
+        print("Done.")
              
     
     def crx2rnx(suffix):
@@ -437,12 +435,15 @@ class Kinematic:
         files = shellcmd("ls *." + suffix)
         files = st.split(files['stout'],"\n")
         for fn in files:
-            print fn
+            print(fn)
             shellcmd("CRX2RNX " + fn)
         print "Done"
          
 
-    def track(self,base,rover,doy_start,doy_end,show_plot=True,use_auto_qa=True,spearman_threshold=0.66):
+    def track(self, base, rover, 
+        doy_start, doy_end, 
+        show_plot=True, 
+        use_auto_qa=True, spearman_threshold=self.track_spearman_threshold):
         """Wrapper to track kinematic processing.
         
         Processing takes one of two slightly different approaches. With 
@@ -496,19 +497,19 @@ class Kinematic:
         
         # Enter main processing loop, works on a per-day basis
         for doy in range(doy_start,doy_end):
-            print "Processing day " + str(doy).zfill(3) + "..."
+            print("Processing day " + str(doy).zfill(3) + "...")
             # Deal with APR coordinates            
             if doy == doy_start and self.apriori != None:
-                print "Using specified APR coordinates."
+                print("Using specified APR coordinates.")
                 apriori = str(self.apriori[0]) + " " + str(self.apriori[1]) + \
                 " " + str(self.apriori[2])
                 logging.info("Using user-input APR coordinates: " + apriori)
             else:
-                print "Extracting APR coordinates from yesterday's data."
+                print("Extracting APR coordinates from yesterday's data.")
                 try:                
                     lc = open("track.GEOD." + rover + ".LC","r")
                 except IOError:
-                    print "!!APR .LC file does not exist! Terminating processing."
+                    print("!!APR .LC file does not exist! Terminating processing.")
                     logging.info("Day " + str(doy).zfill(3) + ": APR .LC file does not exist, terminating")
                     return False                    
                 lines = lc.readlines()
@@ -529,7 +530,7 @@ class Kinematic:
                 LG = self.LG
                 exclude_svs = ''                
                 if retry == True:
-                    print "Reprocessing day...enter new values or press Return to use Default."
+                    print("Reprocessing day...enter new values or press Return to use Default.")
                     ion_stats = raw_input("    Ion Stats: ")
                     if len(ion_stats) == 0: ion_stats = self.ion_stats
                     MW_WL = raw_input("    MW_WL Weighting: ")
@@ -538,9 +539,9 @@ class Kinematic:
                     if len(LG) == 0: LG = self.LG
                     exclude_svs = raw_input("    Exclude satellites, if multiple separate by single space (exclude_svs): ")
                     if len(exclude_svs) == 0: exclude_svs = ''
-                    print "Processing with new parameter values..."
+                    print("Processing with new parameter values...")
                 else:
-                    print "Processing with defaults..."
+                    print("Processing with defaults...")
                         
                 # Construct track argument.
                 # Parameters (-s) are in exact order expected by the cmd file, 
@@ -551,7 +552,7 @@ class Kinematic:
                 apriori + " " + str(MW_WL) + " " + str(LG) + " " + \
                 str(ion_stats) + " " + base + " " + rover + " " + str(exclude_svs) + " > " + \
                 outf
-                print cmd
+                print(cmd)
                 # Send to track. 
                 status = shellcmd(cmd,timeout_seconds=1200,retry_n=1)
                 
@@ -559,28 +560,28 @@ class Kinematic:
                 if status['stderr'] != '':
                     plt.title('ERROR - track terminated. Close this figure window and respond to command prompt.')
                     plt.show()
-                    print "ERROR: Track terminated with the following error message:"
-                    print status['stderr']
+                    print("ERROR: Track terminated with the following error message:")
+                    print(status['stderr'])
                     track_error = True
                     while True:
                         action = raw_input("[T]ry again, [S]kip day, [H]alt processing session?: ").upper()
                         if action in ['T','S','H']:
                             break
                         else:
-                            print 'Not a valid option.'
+                            print('Not a valid option.')
                     if action == 'T': # Try again
                         logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process. Retrying day. Error: " + status['stderr'])
                         retry = True
                         # Go through another iteration of the reprocessing loop
                         continue 
                     elif action == 'S': # Skip day
-                        print 'Skipping day...'
+                        print('Skipping day...')
                         logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process. Skipping day. Error: " + status['stderr'])
                         retry = False
                         # Break out of the reprocessing loop
                         break
                     elif action == 'H': # Halt processing session
-                        print 'Processing halted.'
+                        print('Processing halted.')
                         exit()
                     
                                                             
@@ -589,14 +590,14 @@ class Kinematic:
                 track_error = False
                 for line in fid.readlines():
                     if "IOSTAT error" in line:
-                        print "Track IOSTAT error: " + line
-                        print "...skipping this day."
+                        print("Track IOSTAT error: " + line)
+                        print("...skipping this day.")
                         logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process.")
                         track_error = True                        
                         # Break out of this loop                        
                         break
                     if "Average RMS" in line:
-                        print line.strip("\n")
+                        print(line.strip("\n"))
                 fid.close()
                 if track_error == True:
                     break # break out of while:true loop
@@ -604,8 +605,8 @@ class Kinematic:
                 # Do automated quality check, if requested.
                 if use_auto_qa == True: 
                     data = self.read_track_file("track.NEU." + rover + ".LC")                      
-                    spearman = scipy.stats.spearmanr(data['dEast'],data['dNorth'])           
-                    print 'Spearman value: ' + str(spearman[0])
+                    spearman = scipy.stats.spearmanr(data['dEast'], data['dNorth'])           
+                    print('Spearman value: ' + str(spearman[0]))
                     if spearman[0] < 0:
                         spearman_v = spearman[0] * -1
                     else:
@@ -614,7 +615,7 @@ class Kinematic:
                         keep = True
                         show_plot = False
                     else:
-                        print 'Day rejected by Spearman test.'
+                        print('Day rejected by Spearman test.')
                         keep = False
                         show_plot = True
                 
@@ -635,7 +636,7 @@ class Kinematic:
                 if use_auto_qa == False or (use_auto_qa == True and keep == False):
                     keep = confirm("Keep these results? (press Enter to accept, n to reject ",resp=True)
                     if keep == False:
-                        print "Day rejected."
+                        print("Day rejected.")
                     comment = raw_input("Comment for logging (optional): ")
                     if keep == True:
                         quality = raw_input("Quality indication (good=G,ok=O,bad=B): ").upper()
@@ -649,7 +650,7 @@ class Kinematic:
                 
                 # Sanity check
                 else:
-                    print 'Why are we here?'
+                    print('Why are we here?')
                 
                 # Prepare and save log entry
                 log_str = "Day " + str(doy).zfill(3) + "     ion_stats=" + str(ion_stats) + \
@@ -664,10 +665,10 @@ class Kinematic:
                     retry = True
             
             if track_error == False:
-                print "Saving these results."
+                print("Saving these results.")
                 # Ensure the directory is available.
                 if os.path.isdir('processed') == False:
-                    print "Making processed/ subdirectory."
+                    print("Making processed/ subdirectory.")
                     shellcmd("mkdir processed")
                 # Move and rename NEU results
                 shellcmd("cp track.NEU." + rover + ".LC processed/" + rover + "_" +
@@ -678,10 +679,10 @@ class Kinematic:
                 # Move figure file of results
                 shellcmd("mv " + ret_fname + " processed/")
             
-        print "Batch finished."                           
+        print("Batch finished.")
                 
     
-    def read_track_file(self,fname):
+    def read_track_file(self, fname):
         """Reads the data from track files output in either NEU or GEOD.
         
         Inputs:
@@ -858,7 +859,7 @@ class PostProcess:
         try:
             conf = etree.parse(self.config_subfolder + "config_" + rover + ".xml")
         except IOError:
-            print "Configuration file does not appear to exist. Exiting."
+            print("Configuration file does not appear to exist. Exiting.")
             return
         root = conf.getroot()
         
@@ -876,11 +877,11 @@ class PostProcess:
         # If an already-concatenated multi-year file exists, sort it out here.       
         if appendToFile != None:
             try:
-                print 'Loading ' + appendToFile + '...'
+                print('Loading ' + appendToFile + '...')
                 pre_res = np.loadtxt(appendToFile)
-                print '...file loaded.'
+                print('...file loaded.')
             except IOError:
-                print "Could not open filename specified by appendToFile."
+                print("Could not open filename specified by appendToFile.")
         # If file was opened, retrieve details of last record
         if pre_res != None:
             last_conc_rec = {"year":int(pre_res[-1,0]),"fract_doy":pre_res[-1,13]}
@@ -922,24 +923,24 @@ class PostProcess:
                 fname = spec.attrib['base'] + "_" + rover + "_" + \
                               str(spec.attrib['year']) + "_" + eid + \
                               "geod.dat"
-                print "Seeing if " + fname + " exists."  
+                print("Seeing if " + fname + " exists."  )
                 res = np.loadtxt(fname)
                 
                 # Check to see if it has already been processed to NEU
                 if res.shape[1] == 17:
-                    print "File loaded."
+                    print ("File loaded.")
                 elif res.shape[1] == 20:
-                    print "File loaded. N, E and U seem to be calculated already. They will be re-calculated..."
+                    print ("File loaded. N, E and U seem to be calculated already. They will be re-calculated...")
                     res = res[:,0:17]   
                 elif res.shape[1] == 21:
-                    print "File loaded. There is a fileset ID column.  N, E and U seem to be calculated already. They will be re-calculated..."
+                    print ("File loaded. There is a fileset ID column.  N, E and U seem to be calculated already. They will be re-calculated...")
                     res = res[:,0:17]
                 else:
-                    print "File found but unexpected number of columns. Regenerating from daily files."
+                    print ("File found but unexpected number of columns. Regenerating from daily files.")
                     raise(IOError)
                 
             except IOError:
-                print "Reading daily files..."
+                print ("Reading daily files...")
            
                 # Get excluded doys
                 for e in spec.findall("ex"):
@@ -948,8 +949,8 @@ class PostProcess:
                     r = range(int(from_doy),int(to_doy) + 1)
                     excluded.extend(r)
                 
-                print "Concatenating " + str(spec.attrib['year']) + " " + \
-                spec.attrib['base'] + ", excluding days " + str(excluded)
+                print ("Concatenating " + str(spec.attrib['year']) + " " + \
+                spec.attrib['base'] + ", excluding days " + str(excluded))
                 res = self.concatenate_daily_GEOD(spec.attrib['base'],
                                                   rover,spec.attrib['year'],
                                                   exclude_doy=excluded)
@@ -963,7 +964,7 @@ class PostProcess:
                     last_year = int(last_conc_rec["year"])
                     start_year = pre_res[0,0]
                     if last_year == int(spec.attrib['year']):
-                        print 'new dataset is in same year as pre_res last record.'
+                        print ('new dataset is in same year as pre_res last record.')
                         upto_year = last_year - 1
                     else:
                         upto_year = last_year
@@ -1039,7 +1040,7 @@ class PostProcess:
         pre_u = 0
         pre_corr_applied = False
         for corr in root.find("correct"):
-            print "Applying corrections."
+            print ("Applying corrections.")
                         
             # Need to add on doys according to year
             add_on = 0
@@ -1075,7 +1076,7 @@ class PostProcess:
                     # of the appendToFile data
                     pre_corr_applied = True
                 else:
-                    print "Why are we here?"
+                    print ("Why are we here?")
             else:
                 ch_n = float(corr.attrib['n'])
                 ch_e = float(corr.attrib['e'])
@@ -1088,7 +1089,7 @@ class PostProcess:
             neu['z'][change] = neu['z'][change] + ch_u
         
         # Append NEU columns to matrix
-        print "Concatenating N,E,U to main results."
+        print ("Concatenating N,E,U to main results.")
         # Moves the identity column to the right hand side of the final matrix
         smap_all_save = np.concatenate((smap_all[:,0:17], #'up to but excluding 17'
                                        np.array([neu['x']]).T,
@@ -1117,9 +1118,9 @@ class PostProcess:
             titleyrstr = str(first_year) + "-" + str(last_year)
         
         fname = rover + "_" + yrstr + "_geod.dat"
-        print "Starting to save to " + fname
+        print ("Starting to save to " + fname)
         np.savetxt(fname,smap_all_save,fmt="%.12g")
-        print "File saved."
+        print ("File saved.")
        
        
         if plotData == True:
@@ -1172,17 +1173,17 @@ class PostProcess:
                             
         """
         k = Kinematic()
-        print "Key: E=Excluded, S=Skipped (no file), C=Concatenated."
+        print ("Key: E=Excluded, S=Skipped (no file), C=Concatenated.")
         for doy in range(start_doy,end_doy):
             if doy in exclude_doy:
-                print 'E'+ str(doy) + ', ',
+                print ('E'+ str(doy) + ', ',)
                 continue
             
             # Try to read in the daily GEOD file 
             try:      
                 data = k.read_track_file(rover + '_' + base + '_' + str(doy).zfill(3) + 'GEOD.dat')
             except IOError:
-                print 'S' + str(doy) + ', ',
+                print ('S' + str(doy) + ', ',)
                 continue
             print 'C' + str(doy) + ', ',        
             smap = np.array((data['YY'],data['DOY'],data['Seconds'],data['Latitude'],
@@ -1207,11 +1208,11 @@ class PostProcess:
                 smap_all = None
                 
         if smap_all != None and save_to_file == True:
-            print "Saving to file."
+            print ("Saving to file.")
             fname = base + "_" + rover + "_" + str(year) + "_geod.dat"
             np.savetxt(fname,smap_all,fmt="%.12g")
         elif smap_all == None and save_to_file == True:
-            print "No data found. No file will be saved."
+            print ("No data found. No file will be saved.")
             
         print "Done"        
         return smap_all
@@ -1239,8 +1240,8 @@ class PostProcess:
             Saves 4 figures.
         
         """ 
-        print "Plotting North, East, Up, Time."
-        print "Unless running in IPython, each figure will have to be closed before the next will open."
+        print ("Plotting North, East, Up, Time.")
+        print ("Unless running in IPython, each figure will have to be closed before the next will open.")
         
         # Do some sorting (makes setting axis limits easier)
         n_sort = np.sort(dneui['x']) # sorted north
@@ -1482,7 +1483,7 @@ if __name__ == "__main__":
     k = Kinematic()
     pp = PostProcess()
     if len(sys.argv) == 1:
-        print """
+        print ("""
         This is the command line interface to gps. Examine the module
         code (gps.py) for full information. 
         
@@ -1494,7 +1495,7 @@ if __name__ == "__main__":
          concatenate_daily_geod [base] [rover] [year] [startdoy] [enddoy] 
 
          
-        """         
+        """    )     
     elif sys.argv[1] == 'view_track_output':
         if len(sys.argv) == 6:
             k.view_track_output(sys.argv[2],sys.argv[3],sys.argv[4],sys.argv[5])
@@ -1512,6 +1513,6 @@ if __name__ == "__main__":
     elif sys.argv[1].lower() == 'concatenate_daily_geod':
         pp.concatenate_daily_GEOD(sys.argv[2],sys.argv[3],int(sys.argv[4]),start_doy=int(sys.argv[5]),end_doy=int(sys.argv[6]),save_to_file=True)
     else:
-        print "Unknown command. Maybe the function hasn't been implemented for command line access?"
+        print ("Unknown command. Maybe the function hasn't been implemented for command line access?")
                 
                 
