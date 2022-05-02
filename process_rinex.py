@@ -8,19 +8,20 @@ Created on Thu Feb 16 11:49:30 2012
 @author: Andrew Tedstone (a.j.tedstone@ed.ac.uk)
 """
 
+import sys
 import gps
 rinex = gps.RinexConvert()
 
 rinex.observer = "Andrew Tedstone"
-rinex.institution = "University of Edinburgh"
+rinex.institution = "University of Fribourg"
        
-print "----------------------------\nWindowed rinex file creation\n----------------------------"
-print "Observer set as '" + rinex.observer + "'. Change in process_rinex if this is not correct!"
+print ("----------------------------\nWindowed rinex file creation\n----------------------------")
+print ("Observer set as '" + rinex.observer + "'. Change in process_rinex if this is not correct!")
  
-print "Options:"
-print "     d : Process from daily leica files."
-print "     s : Process from single big leica file."
-print "     r : Process from daily rinex files (e.g. kellyville files from SOPAC)." 
+print ("Options:")
+print ("     d : Process from daily leica files.")
+print ("     s : Process from single big leica file.")
+print ("     r : Process from daily rinex files (e.g. kellyville files from SOPAC)." )
 opt = raw_input("Choose an option (d,s,r): ")
 s_site = raw_input("Enter the 4-character site identifier: ")
 
@@ -30,11 +31,11 @@ if opt == 'd':
     out = rinex.leica_joindaily(prefix,s_site)
     rinex_files = out['joined_rinex']
     
-    print "Problem files: " 
-    print out['problems']
+    print ("Problem files: ") 
+    print (out['problems'])
 
     for fn in rinex_files:
-        print "Doing window overlap on " + fn
+        print ("Window overlap on " + fn)
         rinex.window_overlap(fn,"-22:00:00",28) 
     print "Finished."
 
@@ -47,23 +48,23 @@ elif opt == 's':
                          leica=True,
                          site=s_site,
                          start_date=s_start_date,end_date=s_end_date)
-    print "Finished."
+    print ("Finished.")
 
 # Daily Rinex Files:
 elif opt == 'r':
     # First need to concatenate files
     y = raw_input("Enter the rinex year suffix (e.g. 11 for 2011): ")
     fn = "all_" + s_site + "." + str(y) + "o"
-    print "File will be saved to " + fn
+    print ("File will be saved to " + fn)
     cmd = "teqc " + s_site + "*." + str(y) + "o > " + fn
     status = gps.shellcmd(cmd)
-    print status['stdout']
-    print status['stderr']
+    print (status['stdout'])
+    print (status['stderr'])
     
-    print "Starting window overlap."
+    print ("Starting window overlap.")
     rinex.window_overlap(fn,"-22:00:00",28) 
-    print "Finished."
+    print ("Finished.")
 
 else: 
-    print "Invalid option specified, exiting."
-    exit
+    print ("Invalid option specified, exiting.")
+    sys.exit()

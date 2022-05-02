@@ -39,10 +39,10 @@ try:
     matplotlib.use('GTkAgg')
     import matplotlib.pyplot as plt
 except:
-    print "--------------------------------------------------------------"
-    print "ATTENTION: matplotlib could not load. No figures can be drawn."
-    print "Did you start XMing? Does PuTTY have X11 forwarding enabled?"
-    print "--------------------------------------------------------------"
+    print("--------------------------------------------------------------")
+    print("ATTENTION: matplotlib could not load. No figures can be drawn.")
+    print("Did you start XMing? Does PuTTY have X11 forwarding enabled?"  )
+    print("--------------------------------------------------------------")
 
 import numpy as np
 import scipy.stats
@@ -150,7 +150,7 @@ def confirm(prompt=None, resp=False):
         if not ans:
             return resp
         if ans not in ['y', 'Y', 'n', 'N']:
-            print 'please enter y or n.'
+            print('please enter y or n.')
             continue
         if ans.lower() == 'y':
             return True
@@ -361,7 +361,6 @@ class Kinematic:
         self.LG = None
         self.apriori = None
         self.config_subfolder = "gps_config/"
-        self.track_spearman_threshold = 0.66
     
 
     def get_orbits(self,year,start_doy,end_doy,clearup=True):
@@ -437,13 +436,13 @@ class Kinematic:
         for fn in files:
             print(fn)
             shellcmd("CRX2RNX " + fn)
-        print "Done"
+        print("Done")
          
 
     def track(self, base, rover, 
         doy_start, doy_end, 
         show_plot=True, 
-        use_auto_qa=True, spearman_threshold=self.track_spearman_threshold):
+        use_auto_qa=True, spearman_threshold=0.66):
         """Wrapper to track kinematic processing.
         
         Processing takes one of two slightly different approaches. With 
@@ -733,7 +732,7 @@ class Kinematic:
                     try:
                         data[keys[i]].append(converters[i](line[i]))
                     except ValueError as detail:
-                        print detail, ' filling with value -100'
+                        print (detail, ' filling with value -100')
                         data[keys[i]].append(-100)
         infile.close()
             
@@ -762,7 +761,7 @@ class Kinematic:
         if gtype=='NEU':    
             data = self.read_track_file(fname)
         else:
-            print 'Files georeferenced in a format other than NEU are currently unsupported.'
+            print( 'Files georeferenced in a format other than NEU are currently unsupported.')
             return
         
         #plt.ioff()
@@ -780,7 +779,7 @@ class Kinematic:
         plt.ylabel('North (m)')
         plt.xlabel('East (m)')
         plt.grid(True)
-        plt.title('n = ' + `len(data['dEast'])`)
+        #plt.title('n = ' + `len(data['dEast'])`)
         plt.axes().set_aspect('equal','datalim')    
         plt.legend(numpoints=1, scatterpoints=1, markerscale=0.6, loc='best')    
         plt.hold(False)
@@ -1185,7 +1184,7 @@ class PostProcess:
             except IOError:
                 print ('S' + str(doy) + ', ',)
                 continue
-            print 'C' + str(doy) + ', ',        
+            print ('C' + str(doy) + ', ')        
             smap = np.array((data['YY'],data['DOY'],data['Seconds'],data['Latitude'],
                              data['Longitude'],data['Height'],data['SigN'],
                              data['SigE'],data['SigH'],data['RMS'],data['#'],
@@ -1214,7 +1213,7 @@ class PostProcess:
         elif smap_all == None and save_to_file == True:
             print ("No data found. No file will be saved.")
             
-        print "Done"        
+        print("Done")
         return smap_all
     
     
