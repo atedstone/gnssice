@@ -383,8 +383,10 @@ class Kinematic:
             print("It looks like you've entered the number of days to download, not the end day. You need to specify the end day. Exiting...")
             return
         shellcmd("mkdir sp3_dl")
-        status = shellcmd("cd sp3_dl ; sh_get_orbits -archive sopac -yr " + str(year) + " -doy " + 
-        str(start_doy) + " -ndays " + str(n_days) + " -makeg no")
+        cmd = "cd sp3_dl ; sh_get_orbits -orbit igsf -archive sopac -yr " + str(year) + " -doy " + \
+            str(start_doy) + " -ndays " + str(n_days) + " -nofit"
+        print(cmd)
+        status = shellcmd(cmd)
         print(status['stdout'])
         print(status['stderr'])
         
