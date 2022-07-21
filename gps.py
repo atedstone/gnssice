@@ -55,7 +55,7 @@ import math
 import logging
 import os
 import xml.etree.ElementTree as etree
-
+import pandas as pd
 
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
@@ -79,7 +79,7 @@ def shellcmd(cmd,timeout_seconds=False,retry_n=2):
             retry_count += 1
             try:
                 pid = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE, text=True)
+                                stderr=subprocess.PIPE)
                 stdout,stderr = pid.communicate(timeout=timeout_seconds)                    
             except subprocess.TimeoutExpired:
                 if retry_count < retry_n:
@@ -285,7 +285,7 @@ class RinexConvert:
             window_overlap("leica-file.m00","-22:00:00",28,
                                  leica=True,
                                  site="levb", 
-                                 start_date=[2011,5,1],end_date=[2011,8,15])
+                                 start_date=dt.datetime(...),end_date=dt.datetime(...))
         E.g. Process from a rinex file:
             window_overlap("rinexfile.11o","-22:00:00",28)
         
@@ -297,20 +297,16 @@ class RinexConvert:
         if leica == True:
             add_leica = "-leica mdb -O.o '" + self.observer + "' -O.ag '" + \
             self.institution + "' -O.mo '" + site + "' -O.mov " + str(moving) + " "
-            start_date = datetime.datetime(start_date[0], start_date[1],
-                                           start_date[2])
-            end_date = datetime.datetime(end_date[0], end_date[1], 
-                                         end_date[2])
         else:
             add_leica = ""
             # Extract information about the file.
-            status = shellcmd("teqc " + add_leica + "++config " + input_file + " | grep '\-O\.mo\[nument\]' -a")
+            status = shellcmd("teqc " + add_leica + "++config " + input_file + r" | grep '\-O\.mo\[nument\]' -a")
             if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
                 print(status['stderr'])
                 return
             ret = status['stdout']
             site = ret[15:19].lower()
-            status = shellcmd("teqc " + add_leica + "++config " + input_file + " | grep '\-O\.st\[art\]' -a")
+            status = shellcmd("teqc " + add_leica + "++config " + input_file + r" | grep '\-O\.st\[art\]' -a")
             if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
                 print(status['stderr'])
                 return
@@ -320,7 +316,7 @@ class RinexConvert:
                                            int(start_date[16:18]), 
                                            int(start_date[19:21]))
             
-            status = shellcmd("teqc " + add_leica + "++config " + input_file + " | grep '\-O\.e\[nd\]' -a")
+            status = shellcmd("teqc " + add_leica + "++config " + input_file + r" | grep '\-O\.e\[nd\]' -a")
             if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
                 print(status['stderr'])
                 return
@@ -345,7 +341,7 @@ class RinexConvert:
             cal_date.strftime("%y") + "o"
             print("    " + cmd)
             status = shellcmd(cmd)
-            if status['stderr'] != 'None' and status['stderr'].find("Notice") == False:
+            if status['stderr'].decode('ascii') != 'None' and status['stderr'].decode('ascii').find("Notice") == False:
                 print("         " + status['stderr'])
             # Increment date.
             cal_date = cal_date + datetime.timedelta(days=1)
@@ -521,7 +517,7 @@ class Kinematic:
                 # Convert geodetic to cartesian
                 status = shellcmd("convertc " + str(vals[3]) + " " + 
                 str(vals[4]) + " " + str(vals[5]) + " XYZ")                
-                xyz = status['stdout'].split()
+                xyz = status['stdout'].decode('ascii').split()
                 apriori = str(xyz[0]).strip('-') + " " + str(xyz[1]).strip('-') + " " + str(xyz[2]).strip('-')
             
             # This loop enables reprocessing with changed parameters
@@ -559,7 +555,7 @@ class Kinematic:
                 status = shellcmd(cmd,timeout_seconds=1200,retry_n=1)
                 
                 # Check track status, this catches non-IOSTAT errors (e.g. SP3 Interpolation errors)
-                if status['stderr'] != '':
+                if status['stderr'].decode('ascii') != '':
                     plt.title('ERROR - track terminated. Close this figure window and respond to command prompt.')
                     plt.show()
                     print("ERROR: Track terminated with the following error message:")
@@ -685,60 +681,12 @@ class Kinematic:
                 
     
     def read_track_file(self, fname):
-        """Reads the data from track files output in either NEU or GEOD.
-        
-        Inputs:
-            fname - the path and name of the file to read in. 
-        Outputs:
-            Returns data - a dictionary of lists, keyed by column name.
-            
-        N.b. NotFK provides the letter identifier associated with NotF. In matlab
-        these two 'columns' seem either to appear as one, or the letter identifier
-        doesn't get read in at all - not sure which.... (AJT 8/Feb/2012)
-        
-        """   
-        # Define dataset structure based on georeferencing type.
-        if fname.count('NEU') > 0:
-            keys = ['YY','MM','DD','HR','MIN','Sec','dNorth','dNorth+-','dEast',
-                    'dEast+-','dHeight','dHeight+-','RMS','#DD','Atm','Atm+-',
-                    'FractDOY','Epoch','#BF','NotF','NotFK','Rho_UA']
-            converters = ([float] * 20) + [str] + [float]
-        elif fname.count('GEOD'):
-            keys = ['YY','DOY','Seconds','Latitude','Longitude','Height','SigN',
-                    'SigE','SigH','RMS','#','Atm','Atm+-','Fract DOY','Epoch',
-                    '#BF','NotF','NotFK']
-            converters = ([float] * 17) + [str]
-        else:
-            raise ValueError('Georeferencing not of accepted types GEOD or NEU.')
-    
-        # create the data structure
-        data = {}    
-        for k in keys:
-            data[k] = []     
-        
-        # Open the file
-        try:  
-            infile = open(fname,'r')
-        except IOError as e:
-            raise e
-        # Read past column names as Python doesn't read them correctly
-        infile.readline()
-        # Read past the measurement units
-        infile.readline()  
-        
-        # loop over the remaining lines in the file
-        for line in infile.readlines():
-            # Skip line if it contains bad data
-            if line.find("*") == -1:
-                line = line.split()
-                for i in range(0,len(line)):
-                    try:
-                        data[keys[i]].append(converters[i](line[i]))
-                    except ValueError as detail:
-                        print (detail, ' filling with value -100')
-                        data[keys[i]].append(-100)
-        infile.close()
-            
+        data = pd.read_csv(
+            fname, 
+            delim_whitespace=True, 
+            skiprows=[1],
+            na_values=['*']
+        )
         return data
     
     
@@ -764,31 +712,28 @@ class Kinematic:
         if gtype=='NEU':    
             data = self.read_track_file(fname)
         else:
-            print( 'Files georeferenced in a format other than NEU are currently unsupported.')
+            print('Files georeferenced in a format other than NEU are currently unsupported.')
             return
         
-        #plt.ioff()
         plt.plot(data['dEast'], data['dNorth'],
-                    ms=5, c='b', marker='x', markeredgewidth=1, linestyle='none',
+                    ms=5, c='tab:blue', marker='x', markeredgewidth=1, linestyle='none',
                     label='Position')
-        plt.hold(True)
-        plt.plot(data['dEast'][0],data['dNorth'][0],
-                 c='r', marker='+', markersize=30,
+        plt.plot(data['dEast'].iloc[0],data['dNorth'].iloc[0],
+                 c='tab:red', marker='+', markersize=10,
                  label='Start')
-        plt.plot(data['dEast'][-1],data['dNorth'][-1],
-                 c='k', marker='+', markersize=30,
+        plt.plot(data['dEast'].iloc[-1],data['dNorth'].iloc[-1],
+                 c='tab:red', marker='+', markersize=10,
                  label='End')
         
         plt.ylabel('North (m)')
         plt.xlabel('East (m)')
-        plt.grid(True)
-        #plt.title('n = ' + `len(data['dEast'])`)
-        plt.axes().set_aspect('equal','datalim')    
+        plt.grid()
+        plt.title('%s %s %s' %(base, rover, doy))
+        #plt.axes().set_aspect('equal','datalim')    
         plt.legend(numpoints=1, scatterpoints=1, markerscale=0.6, loc='best')    
-        plt.hold(False)
-        fname = 'trackpy.NEU.' + rover + '.LC.' + str(doy) + '.eps'
+        fname = 'trackpy.NEU.' + rover + '.LC.' + str(doy) + '.png'
         plt.savefig(fname,
-                    orientation='landscape', dpi=150)  
+                    orientation='landscape', dpi=200)  
         if display == True:
            plt.show()
         return fname
