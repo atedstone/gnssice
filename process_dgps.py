@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 """
 Set up session for Leverett GPS track processing.
 
@@ -7,50 +7,49 @@ Created on Thu Feb 16 10:52:10 2012
 @author: Andrew Tedstone (a.j.tedstone@ed.ac.uk)
 """
 
+import argparse
 import gps
-k = gps.Kinematic()
 
-# If you want to set this interactively, set value to None.
-# Otherwise provide in the form [x, y, z].
-k.apriori = None
+if __name__ == '__main__':
 
-base = raw_input("Enter base for this processing session (levb, kely, lev4, cref available): ")
+    parser = argparse.ArgumentParser('Kinematic GNSS processing with TRACK')
 
-if base == "levb":
-    k.ion_stats = 1
-    k.MW_WL = 1
-    k.LG = 0.15
-elif base == "kely":
-    k.ion_stats = 2
-    k.MW_WL = 0.1
-    k.LG = 0.15
-elif base == "lev4":
-    k.ion_stats = 1
-    k.MW_WL = 0.1
-    k.LG = 0.15
-elif base == "cref":
-    k.ion_stats = 1
-    k.MW_WL = 1
-    k.LG = 0.15
-else:
-    print "Unknown base station - cannot set processing parameters. Exiting."
-    exit
+    parser.add_argument('base', type=str, help='Name of base site')
+    parser.add_argument('rover', type=str, help='Name of rover site')
+    parser.add_argument('doy_start', type=int, help='Start DOY')
+    parser.add_argument('doy_end', type=int, help='End DOY')
 
-rover = raw_input("Enter rover for this processing session: ")
-doy_start = int(raw_input("Start on day: "))
-doy_end = int(raw_input("End on day: ")) 
+    parser.add_argument('-ap', type=float, default=None, nargs=3, help='Rover a-priori coordinates (X Y Z')
 
-print "Enter apriori coordinates only if track has not already been run for \
-the day previous to the one you want to start on."
-if k.apriori == None:
-    if gps.confirm("Enter apriori coordinates?",resp=True):
-        apr_x = float(raw_input("APR X: ")) 
-         # track can't cope with -ve sign being provided on command line, hence
-         # it has to be provided in cmd file.
-        apr_y = float(raw_input("APR Y (-ve sign already in track cmd file): "))
-        apr_z = float(raw_input("APR Z: "))
-        k.apriori = [apr_x,apr_y,apr_z]
+    args = parser.parse_args()
 
-k.track(base,rover,doy_start,doy_end) 
+    k = gps.Kinematic()
+
+    # Otherwise provide in the form [x, y, z].
+    k.apriori = None
+
+    if args.base == "levb":
+        k.ion_stats = 1
+        k.MW_WL = 1
+        k.LG = 0.15
+    elif args.base == "kely":
+        k.ion_stats = 2
+        k.MW_WL = 0.1
+        k.LG = 0.15
+    elif args.base == "rusb":
+        k.ion_stats = 1
+        k.MW_WL = 1
+        k.LG = 0.15
+    elif args.base == "klsq":
+        k.ion_stats = 2
+        k.MW_WL = 0.1
+        k.LG = 0.15
+    else:
+        print ("Unknown base station - cannot set processing parameters. Exiting.")
+        exit
+
+    k.apriori = args.ap
+
+    k.track(args.base, args.rover, args.doy_start, args.doy_end) 
 
     
