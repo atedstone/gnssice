@@ -34,15 +34,16 @@ Created on Thu Feb 02 10:50:25 2012
 @author: Andrew Tedstone (andrew.tedstone@unifr.ch)
 
 """
-try:
-    import matplotlib
-    matplotlib.use('GTkAgg')
-    import matplotlib.pyplot as plt
-except:
-    print("--------------------------------------------------------------")
-    print("ATTENTION: matplotlib could not load. No figures can be drawn.")
-    print("Did you start XMing? Does PuTTY have X11 forwarding enabled?"  )
-    print("--------------------------------------------------------------")
+# try:
+#     import matplotlib
+#     #matplotlib.use('GTkAgg')
+#     import matplotlib.pyplot as plt
+# except:
+#     print("--------------------------------------------------------------")
+#     print("ATTENTION: matplotlib could not load. No figures can be drawn.")
+#     print("Did you start XMing? Does PuTTY have X11 forwarding enabled?"  )
+#     print("--------------------------------------------------------------")
+import matplotlib.pyplot as plt
 
 import numpy as np
 import scipy.stats
@@ -78,7 +79,7 @@ def shellcmd(cmd,timeout_seconds=False,retry_n=2):
             retry_count += 1
             try:
                 pid = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
+                                stderr=subprocess.PIPE, text=True)
                 stdout,stderr = pid.communicate(timeout=timeout_seconds)                    
             except subprocess.TimeoutExpired:
                 if retry_count < retry_n:
@@ -146,7 +147,7 @@ def confirm(prompt=None, resp=False):
         prompt = '%s [%s]|%s: ' % (prompt, 'n', 'y')
         
     while True:
-        ans = raw_input(prompt)
+        ans = input(prompt)
         if not ans:
             return resp
         if ans not in ['y', 'Y', 'n', 'N']:
@@ -532,13 +533,13 @@ class Kinematic:
                 exclude_svs = ''                
                 if retry == True:
                     print("Reprocessing day...enter new values or press Return to use Default.")
-                    ion_stats = raw_input("    Ion Stats: ")
+                    ion_stats = input("    Ion Stats: ")
                     if len(ion_stats) == 0: ion_stats = self.ion_stats
-                    MW_WL = raw_input("    MW_WL Weighting: ")
+                    MW_WL = input("    MW_WL Weighting: ")
                     if len(MW_WL) == 0: MW_WL = self.MW_WL
-                    LG = raw_input("    LG Combination Weighting: ")
+                    LG = input("    LG Combination Weighting: ")
                     if len(LG) == 0: LG = self.LG
-                    exclude_svs = raw_input("    Exclude satellites, if multiple separate by single space (exclude_svs): ")
+                    exclude_svs = input("    Exclude satellites, if multiple separate by single space (exclude_svs): ")
                     if len(exclude_svs) == 0: exclude_svs = ''
                     print("Processing with new parameter values...")
                 else:
@@ -565,19 +566,19 @@ class Kinematic:
                     print(status['stderr'])
                     track_error = True
                     while True:
-                        action = raw_input("[T]ry again, [S]kip day, [H]alt processing session?: ").upper()
+                        action = input("[T]ry again, [S]kip day, [H]alt processing session?: ").upper()
                         if action in ['T','S','H']:
                             break
                         else:
                             print('Not a valid option.')
                     if action == 'T': # Try again
-                        logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process. Retrying day. Error: " + status['stderr'])
+                        logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process. Retrying day. Error: " + str(status['stderr']))
                         retry = True
                         # Go through another iteration of the reprocessing loop
                         continue 
                     elif action == 'S': # Skip day
                         print('Skipping day...')
-                        logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process. Skipping day. Error: " + status['stderr'])
+                        logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process. Skipping day. Error: " + str(status['stderr']))
                         retry = False
                         # Break out of the reprocessing loop
                         break
@@ -638,9 +639,9 @@ class Kinematic:
                     keep = confirm("Keep these results? (press Enter to accept, n to reject ",resp=True)
                     if keep == False:
                         print("Day rejected.")
-                    comment = raw_input("Comment for logging (optional): ")
+                    comment = input("Comment for logging (optional): ")
                     if keep == True:
-                        quality = raw_input("Quality indication (good=G,ok=O,bad=B): ").upper()
+                        quality = input("Quality indication (good=G,ok=O,bad=B): ").upper()
                     else: 
                         quality = "REJECTED"
                 
