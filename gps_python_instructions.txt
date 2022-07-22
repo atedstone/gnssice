@@ -211,9 +211,11 @@ Open a terminal window at the scratch location.
 
 Run:
 	
-	process_dgps.py
+	process_dgps.py <base> <rover> <start DOY> <end DOY> -ap <X> <Y> <Z>
 	
 You don't have to process an entire site in one session. Enter the start day and guesstimate an appropriate end day. If you get fed up before the end day is reached, do CTRL+C to break out/halt the process (preferably between processing two days of data, rather than during).
+
+If providing a-priori coordinates (-ap): TRACK will not transfer negative values to the cmd file. Instead, put them positive here and add a negative sign (-) to the relevant field of the cmd file. Once the day using the a-priori coordinates has finished, remove the -ve sign. (Tech note: this is because convertc which is used to convert lat/lon to ECEF for the next day's a-priori coordinates always outputs positive values - hence need to remove -ve sign.)
 
 This script (process_dgps.py) has defaults for ion_stats, MW_WL and LG set. These vary depending on the specified base station: at the time of writing, levb and kely are both supported.
 
@@ -227,10 +229,7 @@ In 2012 I had problems with coordinates from the above website. However, teqc es
 
 A number of additional arguments are hard-set in the cmd files created for each base station, (e.g. levb, kely), e.g. site_stats and bf_set. These probably don't need to be modified from their default values...
 
-By default, track is set up to accept the day's results automatically if the Spearman coefficient between East and North exceeds the specified threshold. If the day fails the test, the script will ask you what action to take next.
-
-You can change the value of the specified threshold at runtime by setting it in process_dgps.py as follows:
-	k.track_spearman_threshold = 0.66
+By default, track is set up to accept the day's results automatically, using an RMS approach. (A Spearman correlation approach is also available). The thresholds are set in the arguments to gps.Kinematic.track().
 
 Track can also be set up to require the user to accept every day manually - provide use_auto_qa=False as an argument to the call to gps.Kinematic.track in process_dgps. 
 
