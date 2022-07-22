@@ -56,6 +56,7 @@ import logging
 import os
 import xml.etree.ElementTree as etree
 import pandas as pd
+import re
 
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
@@ -96,6 +97,11 @@ def shellcmd(cmd,timeout_seconds=False,retry_n=2):
                            stderr=subprocess.PIPE)
         stdout,stderr = pid.communicate()
     
+    if type(stdout) is bytes:
+        stdout = stdout.decode('ascii')
+    if type(stderr) is bytes:
+        stderr = stderr.decode('ascii')
+
     toret = {}
     toret['stdout'] = stdout
     toret['stderr'] = stderr
@@ -341,7 +347,7 @@ class RinexConvert:
             cal_date.strftime("%y") + "o"
             print("    " + cmd)
             status = shellcmd(cmd)
-            if status['stderr'].decode('ascii') != 'None' and status['stderr'].decode('ascii').find("Notice") == False:
+            if status['stderr'] != 'None' and status['stderr'].find("Notice") == False:
                 print("         " + status['stderr'])
             # Increment date.
             cal_date = cal_date + datetime.timedelta(days=1)
@@ -441,7 +447,7 @@ class Kinematic:
     def track(self, base, rover, 
         doy_start, doy_end, 
         show_plot=True, 
-        use_auto_qa=True, spearman_threshold=0.66):
+        use_auto_qa=True, spearman_threshold=None, rms_threshold=20):
         """Wrapper to track kinematic processing.
         
         Processing takes one of two slightly different approaches. With 
@@ -480,6 +486,8 @@ class Kinematic:
               if show_plot=True.
            spearman_threshold: the value that the spearman coefficient must 
               exceed for the day to be approved automatically.
+            rms_threshold: value in mm that median RMS must not exceed for day to
+            be approved automatically.
         Outputs:
             None.
             
@@ -515,9 +523,11 @@ class Kinematic:
                 last_line = lines[-1]
                 vals = last_line.split()
                 # Convert geodetic to cartesian
-                status = shellcmd("convertc " + str(vals[3]) + " " + 
-                str(vals[4]) + " " + str(vals[5]) + " XYZ")                
-                xyz = status['stdout'].decode('ascii').split()
+                # File columns are in order 3=lat, 4=lon, 5=height
+                # Note that convertc takes order lon lat height.
+                status = shellcmd("convertc " + str(vals[4]) + " " + 
+                str(vals[3]) + " " + str(vals[5]) + " XYZ")                
+                xyz = status['stdout'].split()
                 apriori = str(xyz[0]).strip('-') + " " + str(xyz[1]).strip('-') + " " + str(xyz[2]).strip('-')
             
             # This loop enables reprocessing with changed parameters
@@ -555,7 +565,7 @@ class Kinematic:
                 status = shellcmd(cmd,timeout_seconds=1200,retry_n=1)
                 
                 # Check track status, this catches non-IOSTAT errors (e.g. SP3 Interpolation errors)
-                if status['stderr'].decode('ascii') != '':
+                if status['stderr'] != '':
                     plt.title('ERROR - track terminated. Close this figure window and respond to command prompt.')
                     plt.show()
                     print("ERROR: Track terminated with the following error message:")
@@ -586,6 +596,7 @@ class Kinematic:
                 # Check for IO errors, otherwise show RMS values.
                 fid = open(outf)
                 track_error = False
+                store_rms = []
                 for line in fid.readlines():
                     if "IOSTAT error" in line:
                         print("Track IOSTAT error: " + line)
@@ -596,26 +607,40 @@ class Kinematic:
                         break
                     if "Average RMS" in line:
                         print(line.strip("\n"))
+                        store_rms.append(float(re.search(r'[0-9]+\.[0-9]+', line).group()))
                 fid.close()
                 if track_error == True:
                     break # break out of while:true loop
                 
                 # Do automated quality check, if requested.
                 if use_auto_qa == True: 
-                    data = self.read_track_file("track.NEU." + rover + ".LC")                      
-                    spearman = scipy.stats.spearmanr(data['dEast'], data['dNorth'])           
-                    print('Spearman value: ' + str(spearman[0]))
-                    if spearman[0] < 0:
-                        spearman_v = spearman[0] * -1
-                    else:
-                        spearman_v = spearman[0]
-                    if spearman_v > spearman_threshold:
-                        keep = True
-                        show_plot = False
-                    else:
-                        print('Day rejected by Spearman test.')
-                        keep = False
-                        show_plot = True
+                    if spearman_threshold != None:
+                        data = self.read_track_file("track.NEU." + rover + ".LC")                      
+                        spearman = scipy.stats.spearmanr(data['dEast'], data['dNorth'])           
+                        print('Spearman value: ' + str(spearman[0]))
+                        if spearman[0] < 0:
+                            spearman_v = spearman[0] * -1
+                        else:
+                            spearman_v = spearman[0]
+                        if spearman_v > spearman_threshold:
+                            keep = True
+                            show_plot = False
+                        else:
+                            print('Day rejected by Spearman test.')
+                            keep = False
+                            show_plot = True
+                        comment = 'Spearman: %s' %spearman[0]
+                    elif rms_threshold != None:
+                        rms = np.median(np.array(store_rms))
+                        print('Median RMS: %s' %rms)
+                        if rms < rms_threshold:
+                            keep = True
+                            show_plot = False
+                        else:
+                            print('Rejected by RMS.')
+                            keep = False
+                            show_plot = True
+                        comment = 'Med.RMS: %s' %rms
                 
                 # If day passed automatically, prevent the plot from popping up
                 if use_auto_qa == True and keep == True:
@@ -644,7 +669,6 @@ class Kinematic:
                 # Set parameters for logging if automated outputs a keeper
                 elif keep == True:
                     quality = 'A'
-                    comment = 'Spearman: ' + str(spearman[0])
                 
                 # Sanity check
                 else:
@@ -715,6 +739,8 @@ class Kinematic:
             print('Files georeferenced in a format other than NEU are currently unsupported.')
             return
         
+        plt.figure()
+        
         plt.plot(data['dEast'], data['dNorth'],
                     ms=5, c='tab:blue', marker='x', markeredgewidth=1, linestyle='none',
                     label='Position')
@@ -736,6 +762,8 @@ class Kinematic:
                     orientation='landscape', dpi=200)  
         if display == True:
            plt.show()
+        else:
+            plt.close()
         return fname
               
 
