@@ -705,11 +705,17 @@ class Kinematic:
                 
     
     def read_track_file(self, fname):
+        # Specify the header manually - the file contains column names with 
+        # white space which Pandas interprets as signifying a new column.
+        names = ['YY', 'DOY', 'Seconds', 'Latitude', 'Longitude', 'Height', 
+            'SigN', 'SigE', 'SigH', 'RMS', '#', 'Atm', '+-', 'Fract DOY', 
+            'Epoch', '#BF', 'NotF', 'Flag']
         data = pd.read_csv(
             fname, 
             delim_whitespace=True, 
-            skiprows=[1],
-            na_values=['*']
+            skiprows=[0,1],
+            na_values=['*'],
+            names=names
         )
         return data
     
