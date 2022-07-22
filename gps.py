@@ -58,6 +58,8 @@ import xml.etree.ElementTree as etree
 import pandas as pd
 import re
 
+from __future__ import annotations
+
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
     
@@ -164,7 +166,22 @@ def confirm(prompt=None, resp=False):
         if ans.lower() == 'n':
             return False    
 
+
+def read_track_file(
+    fname: str
+    ) -> pd.DataFrame:
+    """ 
+    Read a GEOD or NEU file created by TRACK.
+    """
+    data = pd.read_csv(
+        fname, 
+        delim_whitespace=True, 
+        skiprows=[1],
+        na_values=['*']
+    )
+    return data
     
+
 class RinexConvert:
     """Accomplish Rinex file processing from Leica MDB files."""
     
@@ -615,7 +632,7 @@ class Kinematic:
                 # Do automated quality check, if requested.
                 if use_auto_qa == True: 
                     if spearman_threshold != None:
-                        data = self.read_track_file("track.NEU." + rover + ".LC")                      
+                        data = read_track_file("track.NEU." + rover + ".LC")                      
                         spearman = scipy.stats.spearmanr(data['dEast'], data['dNorth'])           
                         print('Spearman value: ' + str(spearman[0]))
                         if spearman[0] < 0:
@@ -702,16 +719,6 @@ class Kinematic:
                 shellcmd("mv " + ret_fname + " processed/")
             
         print("Batch finished.")
-                
-    
-    def read_track_file(self, fname):
-        data = pd.read_csv(
-            fname, 
-            delim_whitespace=True, 
-            skiprows=[1],
-            na_values=['*']
-        )
-        return data
     
     
     def view_track_output(self, base, rover, doy, gtype='NEU', fname=None, 
@@ -734,7 +741,7 @@ class Kinematic:
             fname = rover + '_' + base + '_' + str(doy) + gtype + '.dat'
         
         if gtype=='NEU':    
-            data = self.read_track_file(fname)
+            data = read_track_file(fname)
         else:
             print('Files georeferenced in a format other than NEU are currently unsupported.')
             return
@@ -1124,75 +1131,8 @@ class PostProcess:
         
         if returnData == True:
             return smap_all_save
+    
 
-        
-    
-    def concatenate_daily_GEOD(self,base,rover,year,start_doy=1,end_doy=366,
-                               exclude_doy=[],save_to_file=False):
-        """Return one large matrix of all daily files combined within 
-           specified DOY range.
-           
-           Inputs:
-               base:        4-letter identifier of base station.
-               rover:       4-letter identifier of rover (on-ice GPS stake)
-               year:        Year in which observations made. 
-               start_doy:   Day of year on which to start concatenation
-               end_doy:     Day of year on which to end concatenation
-               exclude_doy: List of days to exclude from concatenation, usually
-                            because of poor data quality. Optional.
-               save_to_file:If true a file will be saved with standard filename
-                            format.
-           Outputs:
-               smap_all :   Matrix of all concatenated data. Columns are in same
-                            order as GEOD daily files.
-                            
-        """
-        k = Kinematic()
-        print ("Key: E=Excluded, S=Skipped (no file), C=Concatenated.")
-        for doy in range(start_doy,end_doy):
-            if doy in exclude_doy:
-                print ('E'+ str(doy) + ', ',)
-                continue
-            
-            # Try to read in the daily GEOD file 
-            try:      
-                data = k.read_track_file(rover + '_' + base + '_' + str(doy).zfill(3) + 'GEOD.dat')
-            except IOError:
-                print ('S' + str(doy) + ', ',)
-                continue
-            print ('C' + str(doy) + ', ')        
-            smap = np.array((data['YY'],data['DOY'],data['Seconds'],data['Latitude'],
-                             data['Longitude'],data['Height'],data['SigN'],
-                             data['SigE'],data['SigH'],data['RMS'],data['#'],
-                             data['Atm'],data['Atm+-'],data['Fract DOY'],
-                             data['Epoch'],data['#BF'],data['NotF']))
-            
-            # Remove overlaps i.e. 22:00 doy-1 --> 02:00 doy+1
-            smap = smap.transpose()  
-            get_rid = (smap[:,13] < float(doy)) | (smap[:,13] > float(doy) + 1) 
-            smap = smap[~get_rid,:]
-            
-            # concatenate to smap_all        
-            if 'smap_all' not in locals():
-                smap_all = smap
-            else:
-                smap_all = np.concatenate((smap_all,smap),axis=0) 
-        
-        # Just in case no data was extracted        
-        if 'smap_all' not in locals():
-                smap_all = None
-                
-        if smap_all != None and save_to_file == True:
-            print ("Saving to file.")
-            fname = base + "_" + rover + "_" + str(year) + "_geod.dat"
-            np.savetxt(fname,smap_all,fmt="%.12g")
-        elif smap_all == None and save_to_file == True:
-            print ("No data found. No file will be saved.")
-            
-        print("Done")
-        return smap_all
-    
-    
     def plot_neu(self,dneui,labels,titlestr,savestr,display=True):
         """Plot north, east and up coordinates in separate figures.
         
