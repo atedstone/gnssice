@@ -1,10 +1,25 @@
+"""
+Concatenative daily windowed GEOD files together from a given period into 
+a single Parquet/CSV/TSV file.
+
+Andrew Tedstone, July 2022.
+"""
+
+from __future__ import annotations
 import pandas as pd
 import argparse
 
 import gps
 
-def concatenate_daily_geod(base, rover, year, 
-    start_doy, finish_doy, outformat, exclude_doys=[]):
+def concatenate_daily_geod(
+    base : str, 
+    rover : str, 
+    year : int, 
+    start_doy : int, 
+    finish_doy : int, 
+    outformat : str, 
+    exclude_doys : list
+    ) -> None:
 
     fname = base + "_" + rover + "_" + str(year) + "_geod"
 
@@ -57,19 +72,20 @@ def concatenate_daily_geod(base, rover, year,
     else:
         print('No data to concatenate.')
 
-    if __name__ == '__main__':
 
-        p = argparse.ArgumentParser('Concatenate daily TRACK GEOD files.')
+if __name__ == '__main__':
 
-        p.add_argument('base', type=str)
-        p.add_argument('rover', type=str)
-        p.add_argument('year', type=int)
-        p.add_argument('start_doy', type=int)
-        p.add_argument('finish_doy', type=int)
+    p = argparse.ArgumentParser('Concatenate daily TRACK GEOD files.')
 
-        p.add_argument('-outformat', choices=['parquet', 'csv', 'tsv'], default='parquet')
-        p.add_argument('-exclude_doys', nargs='*', type=int)
+    p.add_argument('base', type=str)
+    p.add_argument('rover', type=str)
+    p.add_argument('year', type=int)
+    p.add_argument('start_doy', type=int)
+    p.add_argument('finish_doy', type=int)
 
-        args = p.parse_args()
+    p.add_argument('-outformat', choices=['parquet', 'csv', 'tsv'], default='parquet')
+    p.add_argument('-exclude_doys', nargs='*', type=int)
 
-        concatenate_daily_geod(**args)
+    args = p.parse_args()
+
+    concatenate_daily_geod(**args)
