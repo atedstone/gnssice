@@ -43,6 +43,7 @@ Created on Thu Feb 02 10:50:25 2012
 #     print("ATTENTION: matplotlib could not load. No figures can be drawn.")
 #     print("Did you start XMing? Does PuTTY have X11 forwarding enabled?"  )
 #     print("--------------------------------------------------------------")
+from __future__ import annotations
 import matplotlib.pyplot as plt
 
 import numpy as np
@@ -58,7 +59,6 @@ import xml.etree.ElementTree as etree
 import pandas as pd
 import re
 
-from __future__ import annotations
 
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
