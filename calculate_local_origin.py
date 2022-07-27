@@ -4,8 +4,10 @@ Calculate and save origin of local cartesian grid.
 """
 
 import pandas as pd
-import dask
+from dask import dataframe as dd
 import argparse
+import math
+import numpy as np
 
 import gps
 
@@ -19,17 +21,22 @@ args = p.parse_args()
 # Let's assume we're working with Parquet only.
 # Could load with Dask actualy
 
-geod = dask.dataframe.read_parquet(p.geod_file)
+#geod = dd.read_parquet(args.geod_file)
+geod = pd.read_parquet(args.geod_file)
 
 # We have to recalculate local cartesian for pre_res first 100 points as these are not saved in pre_res.
-pre_res_xyz = self.ell2xyz(geod.iloc[0:100,'Latitude'] * (math.pi/180),
-                           geod.iloc[0:100,'Longitude'] * (math.pi/180),
-                           geod.iloc[0:100,'Height']) 
+pp = gps.PostProcess()
+pre_res_xyz = pp.ell2xyz(geod['Latitude'].iloc[0:100] * (math.pi/180),
+                           geod['Longitude'].iloc[0:100] * (math.pi/180),
+                           geod['Height'].iloc[0:100]) 
 
 x = np.median(pre_res_xyz['x'])
 y = np.median(pre_res_xyz['y'])
 z = np.median(pre_res_xyz['z'])
 
+lat0 = geod['Latitude'].iloc[0:100].median()
+lon0 = geod['Longitude'].iloc[0:100].median()
+
 # save x,y,z.
-df = pd.DataFrame({'x':[x], 'y':[y], 'z':[z]})
-df.to_csv('%s_origin.csv' %p.site, index=False)
+df = pd.DataFrame({'x0':[x], 'y0':[y], 'z0':[z], 'lat0':lat0, 'lon0':lon0})
+df.to_csv('%s_origin.csv' %args.site, index=False)

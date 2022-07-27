@@ -59,6 +59,7 @@ import xml.etree.ElementTree as etree
 import pandas as pd
 import re
 
+import pdb
 
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
@@ -173,12 +174,23 @@ def read_track_file(
     """ 
     Read a GEOD or NEU file created by TRACK.
     """
-    data = pd.read_csv(
+    # Specify the header manually - the file contains column names with 
+    # white space which Pandas interprets as signifying a new column.
+    # Note that some columns are renamed slightly to remove non-alphabet characters.
+    names = ['YY', 'DOY', 'Seconds', 'Latitude', 'Longitude', 'Height', 
+        'SigN', 'SigE', 'SigH', 'RMS', 'N', 'Atm', 'plus_minus', 'Fract_DOY', 
+        'Epoch', 'NBF', 'NotF', 'Flag']
+
+    data = pd.read_fwf(
         fname, 
-        delim_whitespace=True, 
-        skiprows=[1],
-        na_values=['*']
+        infer=True,
+        skiprows=[0, 1],
+        na_values=['*'],
+        names=names
     )
+
+    data = data.drop(labels=['Flag'], axis=1)
+    data = data.apply(pd.to_numeric)
     return data
     
 
@@ -1325,11 +1337,20 @@ class PostProcess:
         Email: mike@craymer.com 
 
         """
-        n = dX.shape[0]
-        if lat.shape[0] == 1:
-          lat = np.ones((n,1)) * lat
-          lon = np.ones((n,1)) * lon
+        
+        print(dX)
+        #pdb.set_trace()
+
+        n = len(dX)
+        if isinstance(lat, float):
+            lat = np.ones((n,1)) * lat
+            lon = np.ones((n,1)) * lon
         R = np.zeros((3,3,n))
+
+        if isinstance(dX, pd.Series):
+            dX = dX.to_numpy()
+            dY = dY.to_numpy()
+            dZ = dZ.to_numpy()
         
         R[0,0,:] = -np.sin(lat.T) * np.cos(lon.T)
         R[0,1,:] = -np.sin(lat.T) * np.sin(lon.T)
@@ -1342,13 +1363,15 @@ class PostProcess:
         R[2,0,:] = np.cos(lat.T) * np.cos(lon.T)
         R[2,1,:] = np.cos(lat.T) * np.sin(lon.T)
         R[2,2,:] = np.sin(lat.T)
+
+        #pdb.set_trace()
         
         RR = np.reshape(R[0,:,:],(3,n))
-        dx = np.sum(RR.T * np.concatenate((dX,dY,dZ),axis=1),axis=1)
+        dx = np.sum(RR.T * np.stack((dX,dY,dZ),axis=1),axis=1)
         RR = np.reshape(R[1,:,:],(3,n))
-        dy = np.sum(RR.T * np.concatenate((dX,dY,dZ),axis=1),axis=1)
+        dy = np.sum(RR.T * np.stack((dX,dY,dZ),axis=1),axis=1)
         RR = np.reshape(R[2,:,:],(3,n))
-        dz = np.sum(RR.T * np.concatenate((dX,dY,dZ),axis=1),axis=1)
+        dz = np.sum(RR.T * np.stack((dX,dY,dZ),axis=1),axis=1)
         
         toret = {}
         toret['x'] = dx

@@ -37,7 +37,7 @@ if __name__ == '__main__':
         k.MW_WL = 0.1
         k.LG = 0.15
     elif args.base == "rusb":
-        k.ion_stats = 2
+        k.ion_stats = 1 
         k.MW_WL = 0.1
         k.LG = 0.15
     elif args.base == "klsq":
