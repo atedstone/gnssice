@@ -26,7 +26,7 @@ def concatenate_daily_geod(
     exclude_doys : list
     ) -> None:
 
-    fname = base + "_" + rover + "_" + str(year) + "_geod"
+    fname = 'geod_%s_%s_%s_%s_%s' %(base, rover, year, start_doy, end_doy)
 
     if outformat == 'tsv':
         sep = '\t'
