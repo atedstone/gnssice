@@ -1,21 +1,25 @@
 from __future__ import annotations
 import numpy as np
-import dask
 import statsmodels.api as sm
 import math
 import pandas as pd
+from scipy.signal import filtfilt
+from pandas.tseries.frequencies import to_offset
 
 import matplotlib.pyplot as plt
 
 import gps
+from gaussfiltcoef import gaussfiltcoef
 
 import pdb
 
 ## !! To-do - move over ell2xyz etc here then remove Kinematic/Postprocess refs
 
+YEAR_LENGTH_DAYS = 365.26
+
 def create_time_index(
-    data
-    ) -> pd.DataFrame:
+    data : pd.DataFrame
+    ) -> pd.DatetimeIndex:
     """
     Requires TRACK-originated dataframe with YY, DOY and Seconds columns.
     Can be used with parquet files.
@@ -86,6 +90,16 @@ def apply_exclusions(
     data : pd.DataFrame,
     exclusion_file : str
     ) -> pd.DataFrame:
+    """
+    Apply temporal exclusions supplied by user.
+    
+    The CSV file has the format: excl_start,excl_end,comment.
+    The format of the dates/times in the file should be of the form
+    yyyy-mm-ddThh:mm:ss (i.e. iso standard, T is the separator between date and time).
+
+    :param data: data to which to apply exclusions
+    :param exclusion_file: path to the CSV file listing the exclusions.
+    """
     
     excl = pd.read_csv(exclusion_file, parse_dates=['excl_start', 'excl_end'])
     for ix, row in excl.iterrows():
@@ -96,15 +110,17 @@ def apply_exclusions(
     
 
 def filter_positions(
-    data : dask.DataFrame,
+    data : pd.DataFrame,
     thresh_rms : float=50.0,
     thresh_h : float=9.0
-    ) -> dask.DataFrame:
+    ) -> pd.DataFrame:
     """
+    Filter (remove) bad positions based on their RMS, height standard deviation
+    and if flagged as being interpolated by TRACK.
+
     :param thresh_rms: Threshold RMS value in mm to retain.
     :param thresh_h: Threshold height std. deviation in cm to retain.
     """
-    # Am I streaming the filtered data back to disk?
     
     # Filter by RMS
     data = data[data['RMS'] <= thresh_rms]
@@ -119,7 +135,8 @@ def filter_positions(
 
 
 def calculate_displacement_trajectory(
-    data: pd.DataFrame | dask.DataFrame
+    data: pd.DataFrame,
+    verbose : bool=False
     ) -> tuple:
     """
     Compute 2-D velocity magnitude and co-variance - North and East.
@@ -128,26 +145,29 @@ def calculate_displacement_trajectory(
     Computes on the contents of the whole dataframe.
 
     :param data: dataframe. Can pass in a subset.
+    :param verbose: if True, print statsmodels linreg results.
     """
 
     # East
     # A.T. 2022-07-25 - not sure why the divide by length of year is needed.
-    X = data['Fract_DOY'] / 365.25
+    X = data['Fract_DOY'] / YEAR_LENGTH_DAYS
     X = sm.add_constant(X)
     y = data['East']
-    r = sm.OLS(y, X).fit()
+    rx = sm.OLS(y, X).fit()
     # Take the slope parameter
-    print(r.summary())
-    vel_e = r.params[0]
+    vel_e = rx.params[0]
 
     # North
-    X = data['Fract_DOY'] / 365.25
+    X = data['Fract_DOY'] / YEAR_LENGTH_DAYS
     X = sm.add_constant(X)
     y = data['North']
-    r = sm.OLS(y, X).fit()
+    ry = sm.OLS(y, X).fit()
     # Take the slope parameter
-    print(r.summary())
-    vel_n = r.params[0]
+    vel_n = ry.params[0]
+    
+    if verbose:
+        print(rx.summary())
+        print(ry.summary())
 
     return (vel_n, vel_e)
 
@@ -157,12 +177,14 @@ def create_rot_matrix(
     ) -> np.array:
     """
     Create rotation matrix, to be used by rotate_to_displacements.
+
+    Designed to be called with the outputs of calculate_displacement_trajectory.
+
+    :param directions: tuple with (north_direction, east_direction)
     """
 
     direc = math.atan2(*directions)
-    print(direc)
     
-    #%rotate --> xy(:,1)=along track, xy(:,2)=across track.
     R1 = np.array([
         [math.cos(-direc), -math.sin(-direc)],
         [math.sin(-direc), math.cos(-direc)]
@@ -175,10 +197,14 @@ def rotate_to_displacements(
     east : pd.Series | np.array | list,
     north : pd.Series | np.array | list,
     R1 : np.array
-    ):
+    ) -> pd.DataFrame:
+    """
+    Rotate North-East data to along-track and across-track (x, y) data.
 
-    # Note the transposes below!!
-    # (R1*[smap(:,19) smap(:,18)]')';
+    :param east: East coordinates to rotate
+    :param north: North coordinates to rotate
+    :param R1: 2x2 rotation matrix (e.g. output of create_rot_matrix())
+    """
     xy = np.dot(R1, np.array([east, north])).T
     return pd.DataFrame(xy, index=east.index, columns=('x', 'y'))
 
@@ -189,27 +215,29 @@ def regularise(
     add_flag : str = "interpolated"
     ) -> pd.DataFrame:
     """
-    Sample the x,y,z input onto the desired frequency and fill gaps with linear interpolation.
+    Sample the x,y,z input onto the desired frequency and fill gaps with linear 
+    interpolation.
 
     :param data: DataFrame of X,Y,Z, indexed by time.
+    :param interval: pandas Offset string.
+    :param add_flag: None, or name of column to create containing 0 if original 
+        data, 1 if interpolated.
     """
     if add_flag is not None:
-        data[add_flag] = False
+        flag = pd.Series(0, index=data.index, name=add_flag, dtype=np.int)
 
     data = data.resample(interval).asfreq()
-
-    # matlab script checked for identical time values ... should this ever happen though?
     
     data_iterp = data.filter(items=('x','y','z'), axis='columns').interpolate()
-    data = pd.concat((data_iterp, data[add_flag]), axis='columns')
-    #data[add_flag] = data[add_flag].where(data[add_flag] != False, True)
+    data_iterp = pd.concat((data_iterp, flag), axis='columns')
+    data_iterp[add_flag][data_iterp[add_flag].isna()] = 1
 
-    return data
+    return data_iterp
 
 
 def remove_displacement_outliers(
     data,
-    interval : str='10s',
+    interval : str,
     iterations : int=2,
     mt : dict={'x':0.08, 'y':0.04, 'z':0.15},
     median_win : str='2H',
@@ -221,7 +249,8 @@ def remove_displacement_outliers(
     Usually run with at least two iterations - the first iteration removes large
     absolute differences, the subsequent iterations remove outliers via sigma.
 
-    :param interval: interval of data as pandas string
+    :param data: dataframe with x,y,z. Does not need to have even frequency.
+    :param interval: sampling interval of data as pandas string
     :param iterations: number of iterations to run
     :param mt: dict of absolute difference thresholds for each dimension
     :param median_win: pandas window string for nth stage filtering
@@ -256,26 +285,95 @@ def remove_displacement_outliers(
                 (diffs['z'] >= sigma_['z'])
                 )]
 
-    # Fill gaps
-    #data = regularise(data, interval)
     return data
 
 
 def smooth_displacement(
-    data
-    ):
-    pass
+    data : pd.DataFrame,
+    gauss_win_secs : int,
+    gauss_win_z_mult : int=4
+    ) -> pd.DataFrame:
+    """ 
+    Smooth x, y and z with a Gaussian forward-backward filter. Returns
+    new dataframe with x,y,z columns.
 
-    # Smooth with Gaussian low-pass filter
+    :param data: dataframe with x,y,z columns and regular time frequency
+    :param gauss_win_secs: Size of the Gaussian filter window in seconds
+    :param gauss_win_z_mult: Multiplier for size of z filter window
+    """
+    interval = data.index.freq.delta.seconds
+    # Design filters
+    gaus_coef = gaussfiltcoef((1/interval),(1/gauss_win_secs))
+    gaus_coef_z = gaussfiltcoef((1/interval),(1/gauss_win_secs * gauss_win_z_mult))
+    # Apply filters
+    xs = pd.Series(filtfilt(gaus_coef, 1, data.x), index=data.index, name='x')
+    ys = pd.Series(filtfilt(gaus_coef, 1, data.y), index=data.index, name='y')
+    zs = pd.Series(filtfilt(gaus_coef_z, 1, data.z), index=data.index, name='z')
+    return pd.concat((xs,ys,zs), axis='columns')
 
-    # Remove interpolated values??
+
+def detrend_z(
+    data : pd.DataFrame,
+    slope : float=None
+    ) -> (pd.Series, float):
+    """
+    Detrend z (height data) as a function of x. Optionally, can be used with a 
+    pre-determined slope. This is useful if a slope has been calculated previously
+    from an earlier block of data - have the option to use this earlier one instead.
+
+    :param data: dataframe containing at least x,z.
+    :param slope: float of slope.
+    :returns: (detrended z, slope)
+    """
+    if slope is None:
+        X = data['x']
+        X = sm.add_constant(X)
+        y = data['z']
+        rz = sm.OLS(y, X).fit()
+        slope = rz.params[2]
+
+    z_detr = data['z'] - data['x'] * slope
+    return (z_detr, slope)
 
 
-def calculate_daily_velocities():
-    pass
+def calculate_daily_velocities(
+    x : pd.Series,
+    tz : None | str
+    ) -> pd.Series:
+    """
+    Calculate 24-h along-track velocity. Units metres/year.
 
+    if tz is provided, first localise the (assumed UTC) measurements to local
+    timezone before calculating the velocities.
+
+    :param x: Series of along-track displacement from which to calculate velocity.
+    :param tz: A 'tz-database' time zone string, e.g. America/Nuuk.
+    """
+    if tz is not None and tz != '':
+        x = x.tz_localize(tz)
+
+    v_24h = x.resample('24H').first()
+    v_24h = (v_24h.shift(1) - v_24h) * YEAR_LENGTH_DAYS
+    return v_24h
+    
 
 def calculate_short_velocities(
-    window : int
-    ):
-    pass
+    x : pd.Series,
+    window : str
+    ) -> pd.Series:
+    """
+    Calculate 'instantaneous' along-track velocity across window. Units metres/year.
+
+    :param data: Series of along-track displacement to convert to velocity.
+    :param window: pandas Offset str
+    """
+    # Calculate multipler to metres/year
+    # https://stackoverflow.com/questions/40223470/how-do-i-get-at-the-pandas-offsets-object-given-an-offset-string
+    offset = to_offset(window)
+    year = pd.Timedelta(days=YEAR_LENGTH_DAYS)
+    multiplier = year / offset
+
+    vs = (x.shift(freq=window) - x) * multiplier
+    return vs 
+
+    

@@ -1337,9 +1337,6 @@ class PostProcess:
         Email: mike@craymer.com 
 
         """
-        
-        print(dX)
-        #pdb.set_trace()
 
         n = len(dX)
         if isinstance(lat, float):
