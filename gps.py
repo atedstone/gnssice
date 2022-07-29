@@ -677,12 +677,16 @@ class Kinematic:
                 # Otherwise continue to use user-specified option.
                 else:
                     __show_plot = show_plot
-                    
+                
+                save_opts = dict(r=rover, b=base, y=year, d=str(doy).zfill(3))
+
                 # Save a scatter plot, also display subject to above.
                 plot_fname = "track.NEU." + rover + ".LC"
-                ret_fname = self.view_track_output(base, rover, doy, 
+                save_plot_to = '{r}_{b}_{y}_{d}_{ftype}.png'.format(ftype='NEU')
+                self.view_track_output(base, rover, doy, 
                                        fname=plot_fname,
-                                       display=__show_plot)
+                                       display=__show_plot,
+                                       save_to=save_plot_to)
                 
                 # Do manual quality check if automatic not on or if automatic test failed.
                 if use_auto_qa == False or (use_auto_qa == True and keep == False):
@@ -721,20 +725,17 @@ class Kinematic:
                 if os.path.isdir('processed') == False:
                     print("Making processed/ subdirectory.")
                     shellcmd("mkdir processed")
-                # Move and rename NEU results
-                shellcmd("cp track.NEU." + rover + ".LC processed/" + rover + "_" +
-                base + "_" + str(doy).zfill(3) + "NEU.dat")
-                # Move and rename GEOD results
-                shellcmd("cp track.GEOD." + rover + ".LC processed/" + rover + "_" +
-                base + "_" + str(doy).zfill(3) + "GEOD.dat")
+                # Move and rename NEU, GEOD results
+                shellcmd("cp track.{ftype}.{r}.LC processed/{r}_{b}_{y}_{d}_{ftype}.dat".format(ftype='NEU', **save_opts))
+                shellcmd("cp track.{ftype}.{r}.LC processed/{r}_{b}_{y}_{d}_{ftype}.dat".format(ftype='GEOD', **save_opts))
                 # Move figure file of results
-                shellcmd("mv " + ret_fname + " processed/")
+                shellcmd("mv {f} processed/".format(f=save_plot_to))
             
         print("Batch finished.")
     
     
     def view_track_output(self, base, rover, doy, gtype='NEU', fname=None, 
-                          display=True):
+                          display=True, save_to=None):
         """Display a scatter plot of reconciled daily track data.
         
         Inputs:
@@ -744,6 +745,7 @@ class Kinematic:
             gtype: georeferencing type. Optional. Currently only NEU supported
             fname: filename of file. Optional. If not used, the filename will
                 be deduced from the other input parameters.
+            save_to: None (don't save), or path/filename to save plot to, including extension.
         
         Outputs:
             None.
@@ -776,14 +778,13 @@ class Kinematic:
         plt.title('%s %s %s' %(base, rover, doy))
         #plt.axes().set_aspect('equal','datalim')    
         plt.legend(numpoints=1, scatterpoints=1, markerscale=0.6, loc='best')    
-        fname = 'trackpy.NEU.' + rover + '.LC.' + str(doy) + '.png'
-        plt.savefig(fname,
-                    orientation='landscape', dpi=200)  
+        if save_to is not None:
+            plt.savefig(save_to, orientation='landscape', dpi=200)  
         if display == True:
            plt.show()
         else:
             plt.close()
-        return fname
+        return 
               
 
 

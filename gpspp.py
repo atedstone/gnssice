@@ -91,7 +91,7 @@ def apply_exclusions(
     exclusion_file : str
     ) -> pd.DataFrame:
     """
-    Apply temporal exclusions supplied by user.
+    Apply temporal exclusions supplied by user, dropping the data from the frame.
     
     The CSV file has the format: excl_start,excl_end,comment.
     The format of the dates/times in the file should be of the form
@@ -105,6 +105,8 @@ def apply_exclusions(
     for ix, row in excl.iterrows():
         print('Excluding %s - %s' %(row.excl_start, row.excl_end))
         data.at[row.excl_start:row.excl_end, :] = np.nan
+
+    #data = data.dropna(axis='index', how='all')
 
     return data
     
@@ -225,6 +227,8 @@ def regularise(
     """
     if add_flag is not None:
         flag = pd.Series(0, index=data.index, name=add_flag, dtype=np.int)
+        flag[data.x.isna()] = np.nan
+        flag = flag.resample(interval).asfreq()
 
     data = data.resample(interval).asfreq()
     
@@ -338,7 +342,8 @@ def detrend_z(
 
 def calculate_daily_velocities(
     x : pd.Series,
-    tz : None | str
+    tz : str=None,
+    flag_iterp : pd.Series=None
     ) -> pd.Series:
     """
     Calculate 24-h along-track velocity. Units metres/year.
@@ -354,6 +359,13 @@ def calculate_daily_velocities(
 
     v_24h = x.resample('24H').first()
     v_24h = (v_24h.shift(1) - v_24h) * YEAR_LENGTH_DAYS
+
+    if flag_iterp is not None:
+        if tz is not None and tz != '':
+            flag_iterp = flag_iterp.tz_localize(tz)
+            f = flag_iterp.resample('D').first()
+            return pd.concat([v_24h, f], axis='columns')
+
     return v_24h
     
 
