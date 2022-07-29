@@ -7,13 +7,39 @@ Andrew Tedstone 2012-14 and 2022, based on previous documentation by Andrew Sole
 1. Ensure everything is installed.
 2. Download orbit (sp3) files for year.
 3. Copy base and rover leica files to working directory.
-4. Download kellyville data to cover known gaps in our base record.
+4. Obtain third party data to cover known gaps in our base record.
 5. `process_rinex.py`: Convert leica files to windowed rinex files (base and rover)
 6. `process_dgps.py`: Do track kinematic processing.
     6a. Process 'temporary' fixes taken during redrilling/flights.
 7. `conc_daily_geod.py`: Concatenate daily track GEOD files to year.
 8. `calculate_local_origin.py`: Only if this is a new site, to calculate local origin position.
 9. `gnss_disp_vel.py`: Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities.
+
+Example using site **lev5**, 2021, days 129 to 242:
+
+```bash
+# Prepare
+cd /scratch
+mkdir gps_2021
+cd gps_2021
+cp -r /location/gps_config .
+gps.py get_orbits 2021 129 242
+
+# Process site RINEX (also do this for the base)
+cp /location/Default...m00 .
+process_rinex.py lev5 Default...m00 s -start 2021-05-09 -finish 2021-08-30
+
+# Run TRACK
+# First get a-priori coordinates, then...
+process_dgps.py rusb lev5 129 242 -ap x y z
+# ...following instructions.
+
+# Post-process
+conc_daily_geod.py rusb lev5 2021 129 242
+# Run next line only if no origin.csv file:
+calculate_local_origin.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
+gnss_disp_vel.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
+```
 
 
 ## Strategy for multi-year field campaigns
@@ -40,11 +66,18 @@ Batches of data cannot span multiple years. So, if collecting data only once a y
     - Figures: `<rover>_<base>_<year>_<doy>_NEU.png` or `trackpy.NEU.<rover>.LC.<doy>.eps` (old)
 	- Processing session log: `gps.track.<rover>.log`
 * Post-processed files: `<rover>_<year>_geod.dat` or `<rover>_<start year>_<end year>_geod.dat`
+* Post-processing ancillary files:
+	- Rotation file: `rotation_<site>.dat`
+	- Origin file: `origin_<site>.csv`
+	- Exclusions file: `exclusions_<site>.csv`
+	- Corrections file: `corrections_<site>.csv` (not currently implemented 2022-07).
+* Post-processing outputs:
+	- Various PNG plots
+	- HDF5 file containing 24-h and 6-h velocities, xyz displacement.
+	- CSV file containing 24-h velocities.
 
 
 ## Installation
-
-You should check that the GAMIT tables are sufficiently up to date for your captured GPS epochs. If they are not, request that IT update them before commencing processing. (Check the TRACK website, below, for updates.)
 
 More about TEQC: http://facility.unavco.org/software/teqc/
 
@@ -53,6 +86,8 @@ More about GLOBK/Gamit: http://chandler.mit.edu/~simon/gtgk/script_help.htm
 More about TRACK: http://geoweb.mit.edu/~tah/track_example/
 
 Access password for GLOBK/Gamit/TRACK downloads: check email / ask maintainers for access.
+
+You should check that the Gamit tables are sufficiently up to date for your captured GPS epochs. If they are not, update the GLOBK/Gamit installation following their instructions.
 
 Create a symlink to gamit, e.g. as follows:
 	
@@ -169,13 +204,13 @@ Also remember that the .sp3 naming scheme only contains the day of year as this 
 If required, download rinex files from another site to cover the gaps.
 
 ```bash
-`sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely`
+sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely
 ```
 
 If files have `*.<yy>o` suffix you're all set, otherwise, if they are zipped, unzip the compressed rinex files using 7zip or whatever. Then convert to normal rinex i.e. from `*.10d` to `*.10o`:
 
 ```bash	
-`gps.py crx2rnx <suffix, e.g. 10d>`
+gps.py crx2rnx <suffix, e.g. 10d>
 ```	    
  
 Overlap/window the kellyville rinex files: see 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
@@ -231,7 +266,7 @@ Open a terminal window at the scratch location.
 Run:
 
 ```bash
-	process_dgps.py <base> <rover> <start DOY> <end DOY> -ap <X> <Y> <Z>
+process_dgps.py <base> <rover> <start DOY> <end DOY> -ap <X> <Y> <Z>
 ```
 	
 You don't have to process an entire site in one session. Enter the start day and guesstimate an appropriate end day. If you get fed up before the end day is reached, do `CTRL+C` to break out/halt the process (preferably between processing two days of data, rather than during).
