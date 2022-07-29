@@ -153,6 +153,9 @@ def read_track_file(
     ) -> pd.DataFrame:
     """ 
     Read a GEOD or NEU file created by TRACK.
+
+    Note that the last column, 'Flag', is dropped.
+
     """
     # Specify the header manually - the file contains column names with 
     # white space which Pandas interprets as signifying a new column.
@@ -161,12 +164,33 @@ def read_track_file(
         'SigN', 'SigE', 'SigH', 'RMS', 'N', 'Atm', 'plus_minus', 'Fract_DOY', 
         'Epoch', 'NBF', 'NotF', 'Flag']
 
+    bounds = [
+        (0, 5),
+        (7, 10),
+        (13, 25),
+        (28, 40),
+        (42, 55),
+        (58, 67),
+        (68, 73),
+        (74, 79),
+        (80, 85),
+        (86, 91),
+        (92, 94),
+        (95, 103),
+        (104, 112),
+        (115, 130),
+        (131, 137),
+        (138, 141),
+        (142, 145),
+        (146, 148)
+        ]
+
     data = pd.read_fwf(
         fname, 
-        infer=True,
         skiprows=[0, 1],
         na_values=['*'],
-        names=names
+        names=names,
+        colspecs=bounds,
     )
 
     data = data.drop(labels=['Flag'], axis=1)
@@ -454,7 +478,7 @@ class Kinematic:
          
 
     def track(self, base, rover, 
-        doy_start, doy_end, 
+        year, doy_start, doy_end, 
         show_plot=True, 
         use_auto_qa=True, spearman_threshold=None, rms_threshold=20):
         """Wrapper to track kinematic processing.
@@ -486,6 +510,7 @@ class Kinematic:
         Inputs:
             base: 4-character identifier of static base station.
             rover: 4-character identifier of moving (on-ice?) GPS station.
+            year: year of data to process.
             doy_start: day of year to start on.
             doy_end: day of year to end on.
             show_plot: if True, plot of data will be popped up automatically.
@@ -509,9 +534,14 @@ class Kinematic:
         ": BEGINNING NEW PROCESSING BATCH")
         logging.info("Start: day " + str(doy_start) + ", End: day " + \
         str(doy_end) + ", Base/Static: " + base)
+
+        yr_short = year % 1000
         
         # Enter main processing loop, works on a per-day basis
         for doy in range(doy_start,doy_end):
+
+            save_opts = dict(r=rover, b=base, y=year, d=str(doy).zfill(3))
+
             print("Processing day " + str(doy).zfill(3) + "...")
             # Deal with APR coordinates            
             if doy == doy_start and self.apriori != None:
@@ -554,8 +584,6 @@ class Kinematic:
                     if len(MW_WL) == 0: MW_WL = self.MW_WL
                     LG = input("    LG Combination Weighting: ")
                     if len(LG) == 0: LG = self.LG
-                    exclude_svs = input("    Exclude satellites, if multiple separate by single space (exclude_svs): ")
-                    if len(exclude_svs) == 0: exclude_svs = ''
                     print("Processing with new parameter values...")
                 else:
                     print("Processing with defaults...")
@@ -563,13 +591,22 @@ class Kinematic:
                 # Construct track argument.
                 # Parameters (-s) are in exact order expected by the cmd file, 
                 # do not change!!
-                outf = rover + "_" + base + "_" + str(doy).zfill(3) + ".out"
+                outf = rover + "_" + base + "_" + str(year) + "_" + str(doy).zfill(3) + ".out"
                 
-                cmd = "track -f " + self.config_subfolder + "track_" + base + ".cmd -d " + str(doy).zfill(3) + " -s " + \
-                apriori + " " + str(MW_WL) + " " + str(LG) + " " + \
-                str(ion_stats) + " " + base + " " + rover + " " + str(exclude_svs) + " > " + \
-                outf
+                cmd = 'track -f {cf} -d {d} -s {ap} {mw} {lg} {istat} {base} {rover} {yr} > {out}'.format(
+                    cf=os.path.join(self.config_subfolder, 'track_%s.cmd' %base),
+                    d=save_opts['d'],
+                    ap=apriori,
+                    mw=MW_WL,
+                    lg=LG,
+                    istat=ion_stats,
+                    base=base,
+                    rover=rover,
+                    yr=yr_short, 
+                    out=outf
+                    )
                 print(cmd)
+
                 # Send to track. 
                 status = shellcmd(cmd,timeout_seconds=1200,retry_n=1)
                 
@@ -657,12 +694,10 @@ class Kinematic:
                 # Otherwise continue to use user-specified option.
                 else:
                     __show_plot = show_plot
-                
-                save_opts = dict(r=rover, b=base, y=year, d=str(doy).zfill(3))
 
                 # Save a scatter plot, also display subject to above.
                 plot_fname = "track.NEU." + rover + ".LC"
-                save_plot_to = '{r}_{b}_{y}_{d}_{ftype}.png'.format(ftype='NEU')
+                save_plot_to = '{r}_{b}_{y}_{d}_{ftype}.png'.format(ftype='NEU', **save_opts)
                 self.view_track_output(base, rover, doy, 
                                        fname=plot_fname,
                                        display=__show_plot,

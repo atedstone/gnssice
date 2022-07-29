@@ -16,6 +16,7 @@ if __name__ == '__main__':
 
     parser.add_argument('base', type=str, help='Name of base site')
     parser.add_argument('rover', type=str, help='Name of rover site')
+    parser.add_argument('year', type=int, help='Year')
     parser.add_argument('doy_start', type=int, help='Start DOY')
     parser.add_argument('doy_end', type=int, help='End DOY')
 
@@ -50,6 +51,6 @@ if __name__ == '__main__':
 
     k.apriori = args.ap
 
-    k.track(args.base, args.rover, args.doy_start, args.doy_end) 
+    k.track(args.base, args.rover, args.year, args.doy_start, args.doy_end) 
 
     
