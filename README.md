@@ -42,141 +42,162 @@ Batches of data cannot span multiple years. So, if collecting data only once a y
 * Post-processed files: `<rover>_<year>_geod.dat` or `<rover>_<start year>_<end year>_geod.dat`
 
 
-## Getting started
+## Installation
 
 You should check that the GAMIT tables are sufficiently up to date for your captured GPS epochs. If they are not, request that IT update them before commencing processing. (Check the TRACK website, below, for updates.)
 
-More about TEQC:
-http://facility.unavco.org/software/teqc/
-More about GLOBK/Gamit:
-http://chandler.mit.edu/~simon/gtgk/script_help.htm
-More about Track:
-http://geoweb.mit.edu/~tah/track_example/
+More about TEQC: http://facility.unavco.org/software/teqc/
 
+More about GLOBK/Gamit: http://chandler.mit.edu/~simon/gtgk/script_help.htm
+
+More about TRACK: http://geoweb.mit.edu/~tah/track_example/
+
+Access password for GLOBK/Gamit/TRACK downloads: check email / ask maintainers for access.
 
 Create a symlink to gamit, e.g. as follows:
 	
 	ln -s /usr/geos/gamit_globk/10.4 ~/gg 
 
-
 If you haven't already got it, clone the pygps repo and put on your python path:
+
  - Make sure you can see hidden files and folders.
- - Open ~/<USER>/.bashrc for editing.
+ - Open `~/<USER>/.bashrc` for editing.
  - Add the following (e.g.):
-		PYTHONPATH="${PYTHONPATH}:~/<USER>/pygps/"
-		export PYTHONPATH
+
+```bash 
+PYTHONPATH="${PYTHONPATH}:~/<USER>/pygps/"
+export PYTHONPATH
+```
+
  - Save and close.
+
 This means that it won't matter where you then do your main working - Python will automatically find the scripts. 
 
-Ensure that gps.py, process_rinex.py and process_dgps.py are executable - e.g.:
-	chmod u+x <file_name>
+Ensure that `gps.py`, `process_rinex.py` and `process_dgps.py` are executable - e.g.:
 
-Set up a working directory in your scratch space, e.g. /scratch/<USER>/gps_workspace_<YEAR>/.
- - You'll probably want to clear up as you go, otherwise you'll end up with loads of files, e.g. once the leica files have been converted to rinex, delete the leica files, and so on. The scripts purposefully do not try to clean up.
+```bash
+chmod u+x <file_name>
+```
+
+Set up a working directory in your scratch space, e.g. `/scratch/<USER>/gps_workspace_<YEAR>/`. 
+
+Clean up as you go, otherwise you'll end up with loads of files, e.g. once the leica files have been converted to rinex, delete the leica files, and so on. The scripts do not clean up.
  
-In this working directory, clone the GPS configuration files, ensuring that the files land up in a subdirectory called gps_config, i.e. (via SSH protocol):
+In this working directory, clone the GPS configuration files, ensuring that the files land up in a subdirectory called `gps_config`, i.e. (via SSH protocol):
 
-	git clone ssh://git@bitbucket.org/atedstone/lev_gps_config.git gps_config
+```bash
+git clone ssh://git@bitbucket.org/atedstone/lev_gps_config.git gps_config
+```
 
 (Alternatively, if setting up processing for a new field campaign in a different location, you may wish to clone this project elsewhere and use the files as templates for your own parameter files to create your own gps_config folder, which you can then version-control if you wish.)
 	
-pygps will then look for track cmd files in this location. If you modify these files, particularly the rover-specific ones, be sure to commit your changes back to the repository once you are done.
+pygps will look for TRACK cmd files in this location. If you modify these files, particularly the rover-specific ones, be sure to commit your changes back to the repository once you are done.
 
-Files from kellyville are sometimes in the compressed rinex format.
-If they are, you will also need RNXCMP, available at:
- http://terras.gsi.go.jp/ja/crx2rnx.html
+Files from Kellyville were sometimes in the compressed rinex format.
+If they are, you will also need RNXCMP, available at http://terras.gsi.go.jp/ja/crx2rnx.html.
 You need to install this to your home directory.
 At the time of writing, fleet requires the Linux 32 bit version.
  1. Download the tar.gz file.
- 2. uncompress the download:
-		tar -zxvf <filename>
+ 2. uncompress the download: `tar -zxvf <filename>`
  3. Put the files on your unix path. Either:
-     a. Copy the files from <RNXCMPDirectory>/bin/ directly into /home/<USER>/bin/ 
-	 -or-
-	 b. Add the <RNXCMPdirectory>/bin/ to your unix path (you'll need to find out how to do this).
+     a. Copy the files from `<RNXCMPDirectory>/bin/` directly into `/home/<USER>/bin/`.
+	 b. Add the `<RNXCMPdirectory>/bin/` to your unix path.
 
 	 
-Note on gps.py functionality
-----------------------------
-This file contains the three main classes used for Python-based GPS processing:
-	gps.RinexConvert
-	   .Kinematic
-	   .PostProcess
-To get full information on the module, at the command line run:
-	pydoc gps   (this displays documentation on the command line)
-	 -or-
-	pydoc -w gps   (this saves documentation to gps.html, to be viewed in a web browser)
-	   
-In general the functions have been designed to be non-interactive. They can therefore be used in automated batch processing. Only gps.Kinematic.track must be run interactively.
+## Note on gps.py functionality
+This file contains two classes used for Python-based GPS processing:
 
-Some of the provided interface scripts to the classes are interactive (e.g. process_rinex, process_dgps) but these could be revised for automated batch processing as they simply ask the user to input the arguments that are then passed on to the classes.
+```python
+gps.RinexConvert
+gps.Kinematic
+```
+
+To get full information on the module, at the command line run:
+
+```bash
+pydoc gps   #(this displays documentation on the command line)
+```
+
+ -or-
+
+```bash
+pydoc -w gps   #(this saves documentation to gps.html, to be viewed in a web browser)
+```
 
 RinexConvert has been developed with Leica 530 and 1200 receivers in mind. Some functionality works with other receivers, e.g. window_overlap works with Trimble dat files (but not .T00/.T01).
 
 Some critical functions have been enabled to take advantage of python's command line functionality, i.e.
 
-	python -m gps <function name> <arguments>
+```bash
+python -m gps <function name> <arguments>
+```
 
 To find out what's available in this way, just do:
-	
-	python -m gps
+
+```bash	
+python -m gps
+```
 
 See also http://docs.python.org/using/cmdline.html for more information.
 
 
-## To quit processing....
-Press `CTRL + C`. You might then need to press `Enter`. 
+## Preparations
 
-If a Python script then the screen will show "KeyboardInterrupt", and may also show a bunch of traceback info - don't worry about this.
-	
-
-
-## Get the GPS files together
 Make sure you are putting all these following files into the scratch/working space you set up above.
 
 Use a terminal window (e.g. PuTTY) to do the following....
 
-1. Get the orbit files:
+### Get the orbit files
 
-	 gps.py get_orbits <year> <start doy> <end doy>
+```bash
+gps.py get_orbits <year> <start doy> <end doy>
+```
 	 
-   N.b. don't attempt this over a change in year, e.g. start of 360 and end of 4. Instead do two calls, e.g.
-	 gps.py get_orbits 2011 360 365
-	 gps.py get_orbits 2012 1 4
-   The only problem will then be that days 365 and 1 don't contain the next and previous days data respectively.
-   Just copy and paste from the relevant files into the next, or on unix command line use cat, e.g:
-		cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
-   Also remember that the .sp3 naming scheme only contains the day of year as this is what Track understands -
-   so if you're not careful when downloading from > 1 year you'll end up overwriting files.
-   ---> Best to only deal with one year's worth of data in scratch space at a time.
+N.b. don't attempt this over a change in year, e.g. start of 360 and end of 4. Instead do two calls.
+The only problem will then be that days 365 and 1 don't contain the next and previous days data respectively.
+Just copy and paste from the relevant files into the next, or on unix command line use cat, e.g:
+
+```bash
+cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
+```
+
+Also remember that the .sp3 naming scheme only contains the day of year as this is what Track understands - so if you're not careful when downloading from > 1 year you'll end up overwriting files. Best to only deal with one year's worth of data in scratch space at a time.
    
-2. Copy the raw leica files for the rover and base into the scratch space.
-	- Copying all rovers over in one go isn't a problem if you want to do that - but possibly will add to your confusion!
-	
-3. If required, download rinex files for kellyville to cover the gaps:   
- a. Download: 
-		`sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely`
-	If files have `*.<yy>o` suffix you're all set, otherwise...	
- b. If they are zipped, unzip the compressed rinex files using 7zip or whatever
- c. Then convert to normal rinex i.e. from `*.10d` to `*.10o`:
-	    `gps.py crx2rnx <suffix, e.g. 10d>`
- d. Overlap/window the kellyville rinex files:
-      See 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
+
+### Optional: Get 3rd party base RINEX files.
+
+If required, download rinex files from another site to cover the gaps.
+
+```bash
+`sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely`
+```
+
+If files have `*.<yy>o` suffix you're all set, otherwise, if they are zipped, unzip the compressed rinex files using 7zip or whatever. Then convert to normal rinex i.e. from `*.10d` to `*.10o`:
+
+```bash	
+`gps.py crx2rnx <suffix, e.g. 10d>`
+```	    
+ 
+Overlap/window the kellyville rinex files: see 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
+
+### Update `obs_file`
+
+Check the `obs_file` file extensions in the track cmd files (in gps_config) - they need to be set to the correct year suffix, otherwise you'll get 'olding' errors from track.
 		
-4. Check the `obs_file` file extensions in the track cmd files (in gps_config) - they need to be set to the correct year suffix, otherwise you'll get 'olding' errors from track.
-		
 	
-## Convert leica files to RINEX
+### Convert leica files to RINEX
+
+Copy the raw leica files for the rover and base into the scratch space.
 
 We convert to RINEX files which are windowed to 28hrs duration: from 22:00 the previous day to 02:00 the next day.
 
 In your terminal window, make sure you're in your scratch gps directory.
 
-There's two possibilities, depending on whether the data were saved to daily files or one big lump.
-Both are addressed by one script...
-Run this command:
+There's two possibilities, depending on whether the data were saved to daily files or one big lump. Assuming single:
 
-	process_rinex.py
+```bash
+process_rinex.py 
+```
 	
 Follow on-screen instructions. Be aware that if you're processing from one big leica file you'll be asked to specify the start and end dates. The processing will then commence and will tell you what it is doing. You can wander off, it shouldn't need your attention.
 
@@ -208,8 +229,10 @@ Open a terminal window at the scratch location.
 **If using PuTTY make sure you also have Xming working - for figure windows.**
 
 Run:
-	
+
+```bash
 	process_dgps.py <base> <rover> <start DOY> <end DOY> -ap <X> <Y> <Z>
+```
 	
 You don't have to process an entire site in one session. Enter the start day and guesstimate an appropriate end day. If you get fed up before the end day is reached, do `CTRL+C` to break out/halt the process (preferably between processing two days of data, rather than during).
 
@@ -236,11 +259,13 @@ The results should eventually pop up in a figure window, and the RMS values shou
 The figure window will block input to the terminal window until it is closed. Unfortunately there's no way around this with the version of python currently on burn.
 
 You'll be asked to input some information for logging - a quality identifier, and an optional longer comment. These are appended the the log file.
+
 Quality identifiers:
-G: Good
-O: Ok
-B: Bad
-A: Accepted Automatically (by Spearman test)
+
+* G: Good
+* O: Ok
+* B: Bad
+* A: Accepted Automatically (by Spearman test)
 
 If RMS high and results not good, try (in the following order):
 
@@ -284,17 +309,23 @@ It's probably easiest to do this in a completely separate gps processing folder,
 
 First convert the leica file to rinex file(s) using process_rinex. Then window this rinex file into separate rinex files for each rover. Flight timings are very helpful here. You can first check the contents of the rinex file:
 
-	teqc +qc rinex_file_name
+```bash
+teqc +qc rinex_file_name
+```
   
 Check satellite status for each site - if a site is only seeing 4 satellites for a period, or there are significant tracking problems, consider windowing out the poor data.  
 
 To do the windowing:
 
-	teqc -st hhmm00 +dm mm input_rinex_file > output_rinex_file
+```bash
+teqc -st hhmm00 +dm mm input_rinex_file > output_rinex_file
+```
   
 N.b. -st by default assumes everything is in seconds, hence you have to specify the number of seconds to force it to understand hours and minutes. So e.g. to extract Lev6 temporary position from 2012 autumn file, begining at 12pm and continuing for 28 minutes:
 
-	teqc -st 120000 +dm 28 levr_2430_ol_12o > lev6_<doy>0_ol.12o
+```bash
+teqc -st 120000 +dm 28 levr_2430_ol_12o > lev6_<doy>0_ol.12o
+```
 
 (Use the same filename format as proper rinex files so that track knows what to look for.)
   
@@ -313,16 +344,6 @@ Copy the GEOD results files into your main GPS processing directory. You'll then
 
 The GEOD track output files need to be combined together into one big file, removing the overlapping hours.
 
-TO BE UPDATED 
-
-Some hints on a workable processing strategy:
-* You're going to have to use the script "iteratively" to work out the corrections to apply to new data, and which times should be excluded.
-* In the config file, comment out datasets you don't want to examine during this process. (i.e. probably everything except the new data)  
-* Interrogate the resulting graph to identify periods of time to exclude and the corrections to apply.
-* Add these corrections and exclusions to the config file.
-* Re-run the script.
-* When you're finally happy with the applied corrections you can uncomment datasets in the config file to create a longer date range file, if desired.  
-
 
 ## Correcting pole leans
 
@@ -331,9 +352,35 @@ It's best to write your own script to do this on a case by case basis.
 Load in the GEOD file, do alterations on the NEU data in it, and re-save the GEOD file.
  
   
-## Converting to velocities
+## Converting to displacements and velocities
 
-TO UPDATE
+### Site origin
+
+If older data for this site has already been post-processed then a file, `origin_<site>.csv` will have been generated. Place this file in the working directory.
+
+If this is the first occasion of processing for this site,  run 
+
+```bash
+calculate_local_origin.py <site> <Parquet file>
+```
+
+### Displacements and velocities of batch
+
+Use `gnss_disp_vel.py`.
+
+If older data for this site have already been post-processed then a file `rotation_<site>.dat` will exist, defining the coefficients to rotate the coordinates into along/across-track displacement. Place this file in the working directory.
+
+Some hints on a workable processing strategy:
+
+* Use the script "iteratively" to identify periods which should be excluded.
+* Add exclusion periods to a file named `exclusions_<site>.csv`, located in your working directory (or specify elsewhere with the `-optpath` option of `gnss_disp_vel.py`).
+* Re-run the script.
+* If corrections due to pole re-drilling are needed then this functionality will first need to be implemented, as it was not (yet) needed for the high-elevation ice velocities campaign!
+
+
+### Joining batches together
+
+This could be considered an analysis task. TO-DO: create script to estimate seasonal and annual velocities.
 	
 
 ## Other information
@@ -342,10 +389,11 @@ TO UPDATE
 
 Net RS files are in T00 format. You'll need to runpkr00 utility to convert them to dat files first. gps.RinexConvert.window_overlap can then process the dat file, e.g.:
 
-> ipython
-> import gps
-> rx = gps.RinexConvert()
-> rx.window_overlap("file.dat","22:00:00",28)
+```python
+import gps
+rx = gps.RinexConvert()
+rx.window_overlap("file.dat","22:00:00",28)
+```
 	
 
 ### Problems with noisy pseudo-range data (lev7)
@@ -357,9 +405,7 @@ Note: it may well be this works fine for this day but not so well for any other.
 
 A couple of other notes: 
 
-I don't think you're including the details of the different antennas (ANTMOD_FILE, ANTE_OFF). I've used here what is in the rinex headers but I guess these may vary from what actually was installed. This reduces some high frequency noise.
- 
-using a DCB_FILE is useful for ambiguity fixing. It's in the gamit tables directory. "
+I don't think you're including the details of the different antennas (ANTMOD_FILE, ANTE_OFF). I've used here what is in the rinex headers but I guess these may vary from what actually was installed. This reduces some high frequency noise. Using a DCB_FILE is useful for ambiguity fixing. It's in the gamit tables directory. "
 
 See also the lev7-specific .cmd file in gps_config.
 
