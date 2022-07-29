@@ -55,10 +55,10 @@ def concatenate_daily_geod(
             saved_opts = dict(r=rover, b=base, y=year, d=str(doy).zfill(3))     
             fname = '{r}_{b}_{y}_{d}_{ftype}.dat'.format(ftype='GEOD', **saved_opts)
             if os.path.exists(fname):
-                data = gps.read_track_file(fname)
+                data = gps.read_track_geod_file(fname)
             else:
                 # Try old filename format (deprecated)
-                data = gps.read_track_file(rover + '_' + base + '_' + str(doy).zfill(3) + 'GEOD.dat')
+                data = gps.read_track_geod_file(rover + '_' + base + '_' + str(doy).zfill(3) + 'GEOD.dat')
         except IOError:
             print ('S' + str(doy) + ', ',)
             continue

@@ -148,11 +148,11 @@ def confirm(prompt=None, resp=False):
             return False    
 
 
-def read_track_file(
+def read_track_geod_file(
     fname: str
     ) -> pd.DataFrame:
     """ 
-    Read a GEOD or NEU file created by TRACK.
+    Read a GEOD file created by TRACK.
 
     Note that the last column, 'Flag', is dropped.
 
@@ -183,7 +183,60 @@ def read_track_file(
         (138, 141),
         (142, 145),
         (146, 148)
-        ]
+    ]
+
+    data = pd.read_fwf(
+        fname, 
+        skiprows=[0, 1],
+        na_values=['*'],
+        names=names,
+        colspecs=bounds,
+    )
+
+    data = data.drop(labels=['Flag'], axis=1)
+    data = data.apply(pd.to_numeric)
+    return data
+
+
+def read_track_neu_file(
+    fname: str
+    ) -> pd.DataFrame:
+    """ 
+    Read a NEU file created by TRACK.
+
+    """
+    # Specify the header manually - the file contains column names with 
+    # white space which Pandas interprets as signifying a new column.
+    # Note that some columns are renamed slightly to remove non-alphabet characters.
+    names = ['YY', 'MM', 'DD', 'HR', 'MIN', 'Sec', 'dNorth', 'dNorth_plus_minus',
+            'dEast', 'dEast_plus_minus', 'dHeight', 'dHeight_plus_minus', 'RMS',
+            'N', 'Atm', 'Atm_plus_minus', 'Fract_DOY', 'Epoch', 'BF', 'NotF', 
+            'Flag', 'Rho_UA']
+
+    bounds = [
+        (0, 5),
+        (6, 8),
+        (9, 11),
+        (12, 14),
+        (15, 17),
+        (19, 28),
+        (29, 43),
+        (44, 53),
+        (54, 69),
+        (70, 79),
+        (80, 95),
+        (96, 105),
+        (106, 114),
+        (115, 118),
+        (119, 128),
+        (129, 137),
+        (140, 155),
+        (156, 162),
+        (163, 166),
+        (167, 170),
+        (171, 172),
+        (173, 189)
+    ]
 
     data = pd.read_fwf(
         fname, 
@@ -661,7 +714,7 @@ class Kinematic:
                 # Do automated quality check, if requested.
                 if use_auto_qa == True: 
                     if spearman_threshold != None:
-                        data = read_track_file("track.NEU." + rover + ".LC")                      
+                        data = read_track_neu_file("track.NEU." + rover + ".LC")                      
                         spearman = scipy.stats.spearmanr(data['dEast'], data['dNorth'])           
                         print('Spearman value: ' + str(spearman[0]))
                         if spearman[0] < 0:
@@ -770,7 +823,7 @@ class Kinematic:
             fname = rover + '_' + base + '_' + str(doy) + gtype + '.dat'
         
         if gtype=='NEU':    
-            data = read_track_file(fname)
+            data = read_track_neu_file(fname)
         else:
             print('Files georeferenced in a format other than NEU are currently unsupported.')
             return
