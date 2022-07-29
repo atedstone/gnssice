@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Calculate and save origin of local cartesian grid.
 
