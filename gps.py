@@ -41,8 +41,6 @@ import xml.etree.ElementTree as etree
 import pandas as pd
 import re
 
-import pdb
-
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
     
