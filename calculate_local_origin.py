@@ -40,4 +40,4 @@ lon0 = geod['Longitude'].iloc[0:100].median()
 
 # save x,y,z.
 df = pd.DataFrame({'x0':[x], 'y0':[y], 'z0':[z], 'lat0':lat0, 'lon0':lon0})
-df.to_csv('%s_origin.csv' %args.site, index=False)
+df.to_csv('origin_%s.csv' %args.site, index=False)
