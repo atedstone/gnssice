@@ -1,3 +1,10 @@
+""" Kinematic GNSS Post-Processing
+
+HISTORY
+Elements of this module were originally contained in gps.py.
+Andrew Tedstone (andrew.tedstone@unifr.ch), July 2022
+
+"""
 from __future__ import annotations
 import numpy as np
 import statsmodels.api as sm
@@ -5,17 +12,20 @@ import math
 import pandas as pd
 from scipy.signal import filtfilt
 from pandas.tseries.frequencies import to_offset
-
 import matplotlib.pyplot as plt
 
 import gps
 from gaussfiltcoef import gaussfiltcoef
 
-import pdb
-
-## !! To-do - move over ell2xyz etc here then remove Kinematic/Postprocess refs
-
+# Length of year in fractional days
 YEAR_LENGTH_DAYS = 365.26
+# Length of Earth's semi-major axis in metres 
+ELLPS_A = 6378137.0
+# Length of Earth's semi-minor axis in metres 
+ELLPS_B = 6356752.3142
+# First numerical eccentricity
+ELLPS_E2 = 1.0 - math.pow((ELLPS_B/ELLPS_A), 2)
+
 
 def create_time_index(
     data : pd.DataFrame
@@ -91,11 +101,11 @@ def apply_exclusions(
     exclusion_file : str
     ) -> pd.DataFrame:
     """
-    Apply temporal exclusions supplied by user, dropping the data from the frame.
+    Apply temporal exclusions supplied by user, setting data in these bounds to NaN.
     
     The CSV file has the format: excl_start,excl_end,comment.
     The format of the dates/times in the file should be of the form
-    yyyy-mm-ddThh:mm:ss (i.e. iso standard, T is the separator between date and time).
+    yyyy-mm-ddThh:mm:ss (i.e. ISO standard, T is the separator between date and time).
 
     :param data: data to which to apply exclusions
     :param exclusion_file: path to the CSV file listing the exclusions.
@@ -105,8 +115,6 @@ def apply_exclusions(
     for ix, row in excl.iterrows():
         print('Excluding %s - %s' %(row.excl_start, row.excl_end))
         data.at[row.excl_start:row.excl_end, :] = np.nan
-
-    #data = data.dropna(axis='index', how='all')
 
     return data
     
@@ -388,4 +396,108 @@ def calculate_short_velocities(
     vs = (x.shift(freq=window) - x) * multiplier
     return vs 
 
+
+def ell2xyz(self,lat,lon,h,a=ELLPS_A,e2=ELLPS_E2):
+    """Convert lat lon height to local north-east-up.
+    
+    lat, lon and h must be numpy 1-d arrays.
+    
+    If a and e2 are None then their values will be obtained from the 
+    class variables self.a and self.e2.
+    
+    Based on the matlab exchange function...:
+    ELL2XYZ  Converts ellipsoidal coordinates to cartesian.
+    Vectorized.
+     Version: 2011-02-19
+     Useage:  [x,y,z]=ell2xyz(lat,lon,h,a,e2)
+              [x,y,z]=ell2xyz(lat,lon,h)
+     Input:   lat - vector of ellipsoidal latitudes (radians)
+              lon - vector of ellipsoidal E longitudes (radians)
+              h   - vector of ellipsoidal heights (m)
+              a   - ref. ellipsoid major semi-axis (m); default GRS80
+              e2  - ref. ellipsoid eccentricity squared; default GRS80
+     Output:  x \
+              y  > vectors of cartesian coordinates in CT system (m)
+              z /
+    
+     Original copyright (c) 2011, Michael R. Craymer Email: mike@craymer.com
+                
+    """
+        
+    v = a / np.sqrt(1 - e2 * np.sin(lat) * np.sin(lat))
+    x = (v + h) * np.cos(lat) * np.cos(lon)
+    y = (v + h) * np.cos(lat) * np.sin(lon)
+    z = (v * (1 - e2) + h) * np.sin(lat)   
+            
+    toret = {}
+    toret['x'] = x
+    toret['y'] = y
+    toret['z'] = z
+    return toret
+    
+
+def ct2lg(self,dX,dY,dZ,lat,lon):
+    """Converts CT coordinate differences to local geodetic.
+    
+    All inputs must be numpy arrays.
+    
+    Local origin at lat,lon,h. If lat,lon are vectors, dx,dy,dz
+    are referenced to origin at lat,lon of same index. If
+    astronomic lat,lon input, output is in local astronomic
+    system. Vectorized in both dx,dy,dz and lat,lon. See also
+    LG2CT.
+    Version: 2011-02-19
+    Useage:  [dx,dy,dz]=ct2lg(dX,dY,dZ,lat,lon)
+    Input:   dX  - vector of X coordinate differences in CT
+     dY  - vector of Y coordinate differences in CT
+     dZ  - vector of Z coordinate differences in CT
+     lat - lat(s) of local system origin (rad); may be vector
+     lon - lon(s) of local system origin (rad); may be vector
+    Output:  dx  - vector of x coordinates in local system (north)
+     dy  - vector of y coordinates in local system (east)
+     dz  - vector of z coordinates in local system (ht)
+            
+    Ported to Python from original Matlab exchange version...
+    Original copyright (c) 2011, Michael R. Craymer 
+    All rights reserved.
+    Email: mike@craymer.com 
+
+    """
+
+    n = len(dX)
+    if isinstance(lat, float):
+        lat = np.ones((n,1)) * lat
+        lon = np.ones((n,1)) * lon
+    R = np.zeros((3,3,n))
+
+    if isinstance(dX, pd.Series):
+        dX = dX.to_numpy()
+        dY = dY.to_numpy()
+        dZ = dZ.to_numpy()
+    
+    R[0,0,:] = -np.sin(lat.T) * np.cos(lon.T)
+    R[0,1,:] = -np.sin(lat.T) * np.sin(lon.T)
+    R[0,2,:] = np.cos(lat.T)
+    
+    R[1,0,:] = -np.sin(lon.T)
+    R[1,1,:] = np.cos(lon.T)
+    R[1,2,:] = np.zeros((1,n))
+    
+    R[2,0,:] = np.cos(lat.T) * np.cos(lon.T)
+    R[2,1,:] = np.cos(lat.T) * np.sin(lon.T)
+    R[2,2,:] = np.sin(lat.T)
+    
+    RR = np.reshape(R[0,:,:],(3,n))
+    dx = np.sum(RR.T * np.stack((dX,dY,dZ),axis=1),axis=1)
+    RR = np.reshape(R[1,:,:],(3,n))
+    dy = np.sum(RR.T * np.stack((dX,dY,dZ),axis=1),axis=1)
+    RR = np.reshape(R[2,:,:],(3,n))
+    dz = np.sum(RR.T * np.stack((dX,dY,dZ),axis=1),axis=1)
+    
+    toret = {}
+    toret['x'] = dx
+    toret['y'] = dy
+    toret['z'] = dz
+    return toret
+    
     
