@@ -49,6 +49,7 @@ p.add_argument('-optspath', type=str, default='', help='Location of options file
 p.add_argument('-noexcl', action='store_true')
 p.add_argument('-nocorr', action='store_true')
 p.add_argument('-noplot', action='store_true')
+p.add_argument('-stake', action='store_true', help='Short-occupation stake mode. Do not apply any filtering or smoothing operations. This is useful for processing short-occupation fixes.')
 p.add_argument('-tz', type=str, help='Localise v_24h to timezone.')
 p.add_argument('-sample_freq', type=str, default='10s')
 
@@ -57,6 +58,11 @@ args = p.parse_args()
 output_to_pre = args.geod_file.split('.parquet')[0]
 output_to =  '%s.h5' %output_to_pre
 output_v24h_csv = '%s_v24h.csv' %output_to_pre
+
+# If there is an existing file, delete it to prevent conflicts.
+if os.path.exists(output_to):
+    os.remove(output_to)
+    print('Old main output file found, deleted.')
 
 # Load data and apply timestamp
 geod = pd.read_parquet(args.geod_file)
@@ -105,42 +111,42 @@ else:
 xy = gpspp.rotate_to_displacements(geod_neu['East'], geod_neu['North'], r1)
 geod_neu_xy = pd.concat((geod_neu, xy), axis=1)
 
-# Do median filtering
-filtd = gpspp.remove_displacement_outliers(geod_neu_xy, args.sample_freq, iterations=2)
+if args.stake:
+    xyz = geod_neu_xy.filter(items=('x', 'y', 'z'), axis='columns')
+else:
+    # Do median filtering
+    filtd = gpspp.remove_displacement_outliers(geod_neu_xy, args.sample_freq, iterations=2)
 
-# Restore to original frequency and interpolate; adds a flag column named 'interpolated'
-filtd_i = gpspp.regularise(filtd, args.sample_freq)
+    # Restore to original frequency and interpolate; adds a flag column named 'interpolated'
+    filtd_i = gpspp.regularise(filtd, args.sample_freq)
 
-# Do Gaussian filtering - this df does not have interpolated column
-filtd_disp = gpspp.smooth_displacement(filtd_i, 7200) #7200secs ~ 2hours
+    # Do Gaussian filtering - this df does not have interpolated column
+    filtd_disp = gpspp.smooth_displacement(filtd_i, 7200) #7200secs ~ 2hours
 
-# Sub-set data to retain only original data samples (modified by Gaussian filtering)
-xyz = filtd_disp.filter(items=('x', 'y', 'z'), axis='columns')
-xyz = xyz[filtd_i.interpolated == 0]
+    # Sub-set data to retain only original data samples (modified by Gaussian filtering)
+    xyz = filtd_disp.filter(items=('x', 'y', 'z'), axis='columns')
+    xyz = xyz[filtd_i.interpolated == 0]
 
-# Calculate velocities
-v_24h = gpspp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz)
-maxperday = pd.Timedelta('1D') / pd.Timedelta(args.sample_freq)
-dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
-v_24h = pd.DataFrame({'v_24h':v_24h, 'obs_cover_percent':dayperc}, index=v_24h.index)
+    # Calculate velocities
+    v_24h = gpspp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz)
+    maxperday = pd.Timedelta('1D') / pd.Timedelta(args.sample_freq)
+    dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
+    v_24h = pd.DataFrame({'v_24h':v_24h, 'obs_cover_percent':dayperc}, index=v_24h.index)
 
-v_6h = gpspp.calculate_short_velocities(filtd_disp['x'], '6H')
+    v_6h = gpspp.calculate_short_velocities(filtd_disp['x'], '6H')
 
-# Save velocities to disk
-if os.path.exists(output_to):
-    os.remove(output_to)
-    print('Old main output file found, deleted.')
+    v_24h.to_hdf(output_to, 'v_24h', format='table')
+    v_24h.to_csv(output_v24h_csv)
+    v_6h.to_hdf(output_to, 'v_6h', format='table')
 
-v_24h.to_hdf(output_to, 'v_24h', format='table')
-v_24h.to_csv(output_v24h_csv)
-v_6h.to_hdf(output_to, 'v_6h', format='table')
+    print('24-hour velocities also exported to: %s.' %output_v24h_csv)
 
 # Save displacements to disk
 xyz.to_hdf(output_to, 'xyz', format='table')
 
 print('Finished.')
 print('Main output file: %s.' %output_to)
-print('24-hour velocities also exported to: %s.' %output_v24h_csv)
+
 
 ##################################################################
 
@@ -152,56 +158,63 @@ if not args.noplot:
     except:
         pass
 
-    plt.figure()
-    plt.plot(geod_neu_xy.x, geod_neu_xy.y, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
-    plt.plot(filtd.x, filtd.y, '.', color='tab:blue', alpha=0.3, label='Filtered, Smoothed')
-    plt.plot(xyz.x, xyz.y, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
-    plt.xlabel('Metres')
-    plt.ylabel('Metres')
-    plt.title('%s X - Y' %args.site)
-    plt.legend()
-    plt.savefig('%s_xy.png' %output_to_pre, dpi=300)
+    if args.stake:
+        plt.figure()
+        plt.plot(geod_neu_xy.x, geod_neu_xy.y, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
+        plt.title('Stake/Quick-Pos X-Y')
+        plt.savefig('%s_xy.png' %output_to_pre, dpi=300)
 
-    plt.figure()
-    plt.plot(geod_neu_xy.index, geod_neu_xy.x, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
-    plt.plot(filtd_disp.index, filtd_disp.x, '.', color='tab:blue', alpha=0.1, label='Filtered, Smoothed')
-    plt.plot(xyz.index, xyz.x, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
-    plt.ylabel('Metres')
-    plt.title('%s X - Time' %args.site)
-    plt.savefig('%s_xt.png' %output_to_pre, dpi=300)
+    else:
+        plt.figure()
+        plt.plot(geod_neu_xy.x, geod_neu_xy.y, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
+        plt.plot(filtd.x, filtd.y, '.', color='tab:blue', alpha=0.3, label='Filtered, Smoothed')
+        plt.plot(xyz.x, xyz.y, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
+        plt.xlabel('Metres')
+        plt.ylabel('Metres')
+        plt.title('%s X - Y' %args.site)
+        plt.legend()
+        plt.savefig('%s_xy.png' %output_to_pre, dpi=300)
 
-    plt.figure()
-    plt.plot(geod_neu_xy.y, geod_neu_xy.index, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
-    plt.plot(filtd_disp.y, filtd_disp.index, '.', color='tab:blue', alpha=0.1, label='Filtered, Smoothed')
-    plt.plot(xyz.y, xyz.index, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
-    plt.xlabel('Metres')
-    plt.title('%s Time - Y' %args.site) 
-    plt.savefig('%s_ty.png' %output_to_pre, dpi=300)
+        plt.figure()
+        plt.plot(geod_neu_xy.index, geod_neu_xy.x, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
+        plt.plot(filtd_disp.index, filtd_disp.x, '.', color='tab:blue', alpha=0.1, label='Filtered, Smoothed')
+        plt.plot(xyz.index, xyz.x, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
+        plt.ylabel('Metres')
+        plt.title('%s X - Time' %args.site)
+        plt.savefig('%s_xt.png' %output_to_pre, dpi=300)
 
-    plt.figure()
-    plt.plot(geod_neu_xy.index, geod_neu_xy.z, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
-    plt.plot(filtd_disp.index, filtd_disp.z, '.', color='tab:blue', alpha=0.1, label='Filtered, Smoothed')
-    plt.plot(xyz.index, xyz.z, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
-    plt.ylabel('Metres')
-    plt.title(%args.site 'Time - Z' %args.site) 
-    plt.savefig('%s_tz.png' %output_to_pre, dpi=300)
+        plt.figure()
+        plt.plot(geod_neu_xy.y, geod_neu_xy.index, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
+        plt.plot(filtd_disp.y, filtd_disp.index, '.', color='tab:blue', alpha=0.1, label='Filtered, Smoothed')
+        plt.plot(xyz.y, xyz.index, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
+        plt.xlabel('Metres')
+        plt.title('%s Time - Y' %args.site) 
+        plt.savefig('%s_ty.png' %output_to_pre, dpi=300)
 
-    plt.figure()
-    ax1 = plt.subplot(211)
-    v_24h.v_24h.plot(ax=ax1, alpha=0.5)
-    # Use steps-pre: velocity calculation for day0 is (X_day1 - Xday0), so the step will show what happens that day.
-    v_24h.v_24h.plot(drawstyle='steps-pre', ax=ax1)
-    plt.title('%s 24H velocity' %args.site)
-    plt.ylabel('m/yr')
-    ax2 = plt.subplot(212, sharex=ax1)
-    v_24h.obs_cover_percent.plot(drawstyle='steps-pre', ax=ax2)
-    plt.ylabel(r'% daily obs cover')
-    plt.savefig('%s_v24h.png' %output_to_pre, dpi=300)
+        plt.figure()
+        plt.plot(geod_neu_xy.index, geod_neu_xy.z, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
+        plt.plot(filtd_disp.index, filtd_disp.z, '.', color='tab:blue', alpha=0.1, label='Filtered, Smoothed')
+        plt.plot(xyz.index, xyz.z, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
+        plt.ylabel('Metres')
+        plt.title('%s Time - Z' %args.site) 
+        plt.savefig('%s_tz.png' %output_to_pre, dpi=300)
 
-    plt.figure()
-    v_6h.plot()
-    plt.title('%s Instantaneous 6H velocity' %args.site)
-    plt.ylabel('m/yr')
-    plt.savefig('%s_v6h.png' %output_to_pre, dpi=300)
+        plt.figure()
+        ax1 = plt.subplot(211)
+        v_24h.v_24h.plot(ax=ax1, alpha=0.5)
+        # Use steps-pre: velocity calculation for day0 is (X_day1 - Xday0), so the step will show what happens that day.
+        v_24h.v_24h.plot(drawstyle='steps-pre', ax=ax1)
+        plt.title('%s 24H velocity' %args.site)
+        plt.ylabel('m/yr')
+        ax2 = plt.subplot(212, sharex=ax1)
+        v_24h.obs_cover_percent.plot(drawstyle='steps-pre', ax=ax2)
+        plt.ylabel(r'% daily obs cover')
+        plt.savefig('%s_v24h.png' %output_to_pre, dpi=300)
 
-    plt.show()
+        plt.figure()
+        v_6h.plot()
+        plt.title('%s Instantaneous 6H velocity' %args.site)
+        plt.ylabel('m/yr')
+        plt.savefig('%s_v6h.png' %output_to_pre, dpi=300)
+
+        plt.show()
