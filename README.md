@@ -14,6 +14,7 @@ Andrew Tedstone 2012-14 and 2022, based on previous documentation by Andrew Sole
 7. `conc_daily_geod.py`: Concatenate daily track GEOD files to year.
 8. `calculate_local_origin.py`: Only if this is a new site, to calculate local origin position.
 9. `gnss_disp_vel.py`: Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities.
+10. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future.
 
 Example using site **lev5**, 2021, days 129 to 242:
 
@@ -415,6 +416,7 @@ Some hints on a workable processing strategy:
 * Re-run the script.
 * If corrections due to pole re-drilling are needed then this functionality will first need to be implemented, as it was not (yet) needed for the high-elevation ice velocities campaign!
 
+For very short batches of data - i.e. where a site has been re-occupied for only minutes to hours - use `gnss_disp_vel.py` with the `-stake` option. This disables the smoothing procedures, as they are only applicable to longer time series data. In this case only `xyz` data will be saved to disk.
 
 ### Joining batches together
 
