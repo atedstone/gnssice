@@ -81,9 +81,15 @@ def shellcmd(cmd,timeout_seconds=False,retry_n=2):
         stdout,stderr = pid.communicate()
     
     if type(stdout) is bytes:
-        stdout = stdout.decode('ascii')
+        try:
+            stdout = stdout.decode('ascii')
+        except UnicodeDecodeError:
+            print('Warning: could not ASCII-decode stdout')
     if type(stderr) is bytes:
-        stderr = stderr.decode('ascii')
+        try:
+            stderr = stderr.decode('ascii')
+        except UnicodeDecodeError:
+            print('Warning: could not ASCII-decode stdout')
 
     toret = {}
     toret['stdout'] = stdout
@@ -98,7 +104,7 @@ def neighborhood(iterable):
     """
     iterator = iter(iterable)
     prev = None
-    item = iterator.next()  # throws StopIteration if empty.
+    item = iterator.__next__()  # throws StopIteration if empty.
     for next in iterator:
         yield (prev,item,next)
         prev = item
@@ -307,7 +313,7 @@ class RinexConvert:
             # Extract file date and convert to doy
             # Rinex returns file start datein format: 
                 # '-O.st[art] yyyy mm dd hh mm s.sss...'
-            rinex_st = shellcmd("teqc ++config " + fn + " | grep '\-O\.st\[art\]' -a")
+            rinex_st = shellcmd("teqc ++config " + fn + r" | grep '\-O\.st\[art\]' -a")
             if rinex_st['stderr'] != '':
                 if rinex_st['stderr'].find("Notice") < 0:
                     print("Couldn't grep start from ++config: " + rinex_st['stderr'] + ', continuing...')
@@ -452,7 +458,9 @@ class Kinematic:
         self.config_subfolder = "gps_config/"
     
 
-    def get_orbits(self,year,start_doy,end_doy,clearup=True):
+    def get_orbits(self, year, start_doy, end_doy, 
+        clearup=True,
+        rename=False):
         """Download daily IGS sp3 orbit files and overlap them.
         
         Each resulting overlapped file contains the previous day, the current
@@ -464,6 +472,10 @@ class Kinematic:
         If clearup=True, the un-overlapped files will be deleted afterwards and
         overlapped files moved into the main directory. Otherwise, they will
         remain in cat_sp3/.
+
+        If rename=True, files will have the year signifier removed from their
+        filename.
+
         """
         start_doy = int(start_doy)
         end_doy = int(end_doy)
@@ -480,7 +492,7 @@ class Kinematic:
         print(status['stderr'])
         
         status = shellcmd("ls sp3_dl/*.sp3")
-        files = st.split(status['stdout'],"\n")
+        files = status['stdout'].split("\n")
         shellcmd("mkdir cat_sp3")   
         
         doy = start_doy
@@ -491,7 +503,11 @@ class Kinematic:
                 nex = ""
             if item == "":
                 break
-            newfn = "cat_sp3/igs" + str(doy).zfill(3) + ".sp3"
+            if rename:
+                newfn = "cat_sp3/igs" + str(doy).zfill(3) + ".sp3"
+            else:
+                yr = int(year) % 1000
+                newfn = "cat_sp3/igs" + str(yr) + str(doy).zfill(3) + ".sp3"
             try:
                 fn = open(newfn)
                 fn.close()
