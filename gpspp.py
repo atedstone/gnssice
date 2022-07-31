@@ -64,14 +64,12 @@ def calculate_local_neu(
     :param lon0: WGS84 longitude origin (corresponding to x0)
     """
 
-    pp = gps.PostProcess()
-
     ## Transform ellipsoidal coordinates to cartesian
     # First convert to radians
     tmp_y = data['Latitude'] * (math.pi/180)
     tmp_x = data['Longitude'] * (math.pi/180)
     # Convert to XYZ
-    xyz = pp.ell2xyz(tmp_y, tmp_x, data['Height'])
+    xyz = ell2xyz(tmp_y, tmp_x, data['Height'])
 
     ## Transform absolute cartesian coordinates to local origin cartesian
     dX = xyz['x'] - x0
@@ -80,9 +78,9 @@ def calculate_local_neu(
 
     ## Transform to Local Geodetic: North-East-Up.
     # Matrix reshaping is to satisfy the requirements of the function.
-    neu = pp.ct2lg(dX, dY, dZ,
-                   lat0 * (math.pi / 180),
-                   lon0 * (math.pi / 180))
+    neu = ct2lg(dX, dY, dZ,
+                lat0 * (math.pi / 180),
+                lon0 * (math.pi / 180))
     
     # Format to dataframe
     neu = pd.DataFrame(neu, index=data.index)
@@ -397,7 +395,7 @@ def calculate_short_velocities(
     return vs 
 
 
-def ell2xyz(self,lat,lon,h,a=ELLPS_A,e2=ELLPS_E2):
+def ell2xyz(lat,lon,h,a=ELLPS_A,e2=ELLPS_E2):
     """Convert lat lon height to local north-east-up.
     
     lat, lon and h must be numpy 1-d arrays.
@@ -436,7 +434,7 @@ def ell2xyz(self,lat,lon,h,a=ELLPS_A,e2=ELLPS_E2):
     return toret
     
 
-def ct2lg(self,dX,dY,dZ,lat,lon):
+def ct2lg(dX,dY,dZ,lat,lon):
     """Converts CT coordinate differences to local geodetic.
     
     All inputs must be numpy arrays.
