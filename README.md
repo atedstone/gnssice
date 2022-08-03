@@ -1,6 +1,11 @@
-# DGPS Processing with Python
+# GNSSIce - Processing of differential GNSS observations from ice sheets and glaciers
 
-Andrew Tedstone 2012-14 and 2022, based on previous documentation by Andrew Sole and Ian Bartholomew, plus workflow approach by Matt King (U.Newcastle, now U.Tasmania).
+This package provides functionality to kinematically process differential GNSS/GPS observations collected on moving ice (using TRACK), and to post-process them to yield displacements and velocities.
+
+## Credits
+
+* Andrew Tedstone 2012-2014 and 2022.
+* Developed from previous processing routines written by Matt King, Andrew Sole, Ian Bartholomew.
 
 ## Summary of workflow
 
