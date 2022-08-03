@@ -15,7 +15,7 @@ from pandas.tseries.frequencies import to_offset
 import matplotlib.pyplot as plt
 
 from gnssice import gnss
-from gaussfiltcoef import gaussfiltcoef
+from gnssice.gaussfiltcoef import gaussfiltcoef
 
 # Length of year in fractional days
 YEAR_LENGTH_DAYS = 365.26
