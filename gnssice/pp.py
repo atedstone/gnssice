@@ -14,7 +14,7 @@ from scipy.signal import filtfilt
 from pandas.tseries.frequencies import to_offset
 import matplotlib.pyplot as plt
 
-import gps
+from gnssice import gnss
 from gaussfiltcoef import gaussfiltcoef
 
 # Length of year in fractional days
