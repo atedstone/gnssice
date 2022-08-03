@@ -12,8 +12,8 @@ import sys
 import argparse
 import datetime as dt
 
-import gps
-rinex = gps.RinexConvert()
+from gnssice import gnss
+rinex = gnss.RinexConvert()
 
 if __name__ == '__main__':
 
@@ -32,10 +32,16 @@ if __name__ == '__main__':
         help='For single files, day to finish processing, yyyy-mm-dd'
     )
 
+    parser.add_argument('-overlap', type=str, nargs=2, 
+        default=None,
+        help='window start time, followed by number of hours. e.g. -22:00:00 28')
+
     args = parser.parse_args()
     rinex.observer = "Andrew Tedstone"
     rinex.institution = "University of Fribourg"
-           
+    
+    print(args)
+    raise ValueError
 
     print ("----------------------------\nWindowed rinex file creation\n----------------------------")
     print ("Observer set as '" + rinex.observer + "'. Change in process_rinex if this is not correct!")

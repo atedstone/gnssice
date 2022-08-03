@@ -10,7 +10,7 @@ import argparse
 import math
 import numpy as np
 
-import gpspp
+from gnssice import pp
 
 p = argparse.ArgumentParser('Calculate and save origin coordinates of local cartesian grid.')
 p.add_argument('site', type=str, help='Name of site')

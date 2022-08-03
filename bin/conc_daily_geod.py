@@ -14,7 +14,7 @@ import pandas as pd
 import argparse
 import os
 
-import gps
+from gnssice import gnss as gps
 
 def concatenate_daily_geod(
     base : str, 

@@ -102,26 +102,20 @@ Create a symlink to gamit, e.g. as follows:
 	
 	ln -s /usr/geos/gamit_globk/10.4 ~/gg 
 
-If you haven't already got it, clone the pygps repo and put on your python path:
-
- - Make sure you can see hidden files and folders.
- - Open `~/<USER>/.bashrc` for editing.
- - Add the following (e.g.):
-
-```bash 
-PYTHONPATH="${PYTHONPATH}:~/<USER>/pygps/"
-export PYTHONPATH
-```
-
- - Save and close.
-
-This means that it won't matter where you then do your main working - Python will automatically find the scripts. 
-
-Ensure that `gps.py`, `process_rinex.py` and `process_dgps.py` are executable - e.g.:
+Set up a conda environment with the pre-requisites, e.g.
 
 ```bash
-chmod u+x <file_name>
+conda create -n gnss -c conda-forge ipython statsmodels pandas scipy matplotlib
+conda activate gnss
 ```
+
+If you haven't already got it, clone the gnssice repo, change into its directory then install in-place using pip:
+
+```bash
+pip install -e .
+```
+
+This means that it won't matter where you then do your main working - your system will automatically find the scripts in the `bin` folder. 
 
 Set up a working directory in your scratch space, e.g. `/scratch/<USER>/gps_workspace_<YEAR>/`. 
 

@@ -39,7 +39,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import argparse
 
-import gpspp
+from gnssice import pp
 
 p = argparse.ArgumentParser('Kinematic GPS: filter positions, calculate trajectories, calculate velocities.')
 p.add_argument('site', type=str, help='Name/identifier of site')

@@ -8,7 +8,7 @@ Created on Thu Feb 16 10:52:10 2012
 """
 
 import argparse
-import gps
+from gnssice import gnss
 
 if __name__ == '__main__':
 
@@ -24,7 +24,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    k = gps.Kinematic()
+    k = gnss.Kinematic()
 
     # Otherwise provide in the form [x, y, z].
     k.apriori = None
