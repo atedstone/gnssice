@@ -137,7 +137,10 @@ def filter_positions(
     data = data[data['SigH'] <= thresh_h]
 
     # Filter by removing TRACK-interpolated values
-    data = data[data['N'] == 0]
+    data = data[data['N'] > 0]
+
+    # Only retain epochs in which all ambiguities have been fixed (i.e. no unfixed ambiguities left).
+    data = data[data['NotF'] == 0]
 
     return data
 
