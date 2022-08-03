@@ -120,14 +120,21 @@ def apply_exclusions(
 def filter_positions(
     data : pd.DataFrame,
     thresh_rms : float=50.0,
-    thresh_h : float=9.0
+    thresh_h : float=9.0,
+    thresh_N : int=0,
+    thresh_NotF : int=0
     ) -> pd.DataFrame:
     """
     Filter (remove) bad positions based on their RMS, height standard deviation
     and if flagged as being interpolated by TRACK.
 
-    :param thresh_rms: Threshold RMS value in mm to retain.
-    :param thresh_h: Threshold height std. deviation in cm to retain.
+    :param thresh_rms: Threshold RMS value in mm to retain. (<=)
+    :param thresh_h: Threshold height std. deviation in cm to retain. (<=)
+    :param thresh_N: Threshold to apply to column N, retain above this value. (>)
+    :param thresh_NotF : Threshold to apply to NotF, retain below this value (<=).
+
+    Default parameters are based on Bartholomew/Sole/Tedstone (thresh_rm, thresh_h) 
+    and Doyle 2014 (thresh_N, thresh_NotF).
     """
     
     # Filter by RMS
@@ -137,10 +144,10 @@ def filter_positions(
     data = data[data['SigH'] <= thresh_h]
 
     # Filter by removing TRACK-interpolated values
-    data = data[data['N'] > 0]
+    data = data[data['N'] > thresh_N]
 
     # Only retain epochs in which all ambiguities have been fixed (i.e. no unfixed ambiguities left).
-    data = data[data['NotF'] == 0]
+    data = data[data['NotF'] <= thresh_NotF]
 
     return data
 
