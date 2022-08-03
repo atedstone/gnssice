@@ -358,18 +358,25 @@ class RinexConvert:
         return toret
         
                  
-    def window_overlap(self, input_file, st_offset, dh,
-                       leica=False,
-                       site=False, moving=1,
-                       start_date=False, end_date=False):
+    def window_overlap(
+        self, 
+        input_file : str,
+        st_offset : str='00:00:00', 
+        dh : int=24,
+        leica: bool=False,
+        site: str=None, 
+        moving: int=1,
+        start_date: datetime.datetime=None,
+        end_date: datetime.dateime=None
+        ) -> None:
         """ Split one large rinex file into windowed files.
             
         Inputs:
             input_file: filename of the rinex file to split into windowed files.
-            st_offset: The time by which to offset from midnight. Include minus
-                    sign if necessary. Eg. -22:00:00 starts processing at 10pm 
-                    on day before. Provide as a string, i.e. "-22:00:00"
-            dh: duration of window in hours. E.g. 28. Integer
+            st_offset: The time of the day before the main day at which to begin. Eg. 22:00:00 starts processing at 10pm 
+                    on day before. Provide as a string, i.e. "_22:00:00". 
+                    For no overlap , set to '00:00:00'
+            dh: duration of window in hours. E.g. 28. Integer. Default 24hours.
             leica: set to True if input file is in raw leica format. If True,
                 also provide...
                     site: recording site 4-character identifier.  
@@ -387,7 +394,8 @@ class RinexConvert:
         E.g. Process from a rinex file:
             window_overlap("rinexfile.11o","-22:00:00",28)
         
-        
+        Overlapping files will be output with _ol in their filename.
+
         Outputs:
             None.
             
@@ -422,27 +430,37 @@ class RinexConvert:
             end_date = datetime.datetime(int(end_date[11:15]),
                                          int(end_date[16:18]), 
                                          int(end_date[19:21]))
-            
+
+        # This returns today's Julian day of Year ('yday' == 'year day', not yesterday!)
         start_doy = start_date.timetuple().tm_yday
         end_doy = end_date.timetuple().tm_yday
         
         print("Commencing windowing on " + input_file)
         print("This file begins on " + start_date.strftime("%Y.%m.%d (DOY %j)"))
         print("and ends on " + end_date.strftime("%Y.%m.%d (DOY %j)"))
+
+        if st_offset != '00:00:00':
+            ending = '0_ol.'
+            # The window commences the day before the main day of interest
+            cal_date = start_date - datetime.timedelta(days=1)
+        else:
+            ending = '0.'
+            # Window will start on day of interest
+            cal_date = start_date
         
-        cal_date = start_date - datetime.timedelta(days=1)
         for doy in range(start_doy,end_doy + 1):
             print("Processing day " + str(doy))
             
             cmd = "teqc " + add_leica + "-st " + cal_date.strftime("%Y%m%d") + str(st_offset) + " +dh " + \
-            str(dh) + " " + input_file + " > " + site + "_" + str(doy).zfill(3) + "0_ol." + \
+            str(dh) + " " + input_file + " > " + site + "_" + str(doy).zfill(3) + ending + \
             cal_date.strftime("%y") + "o"
             print("    " + cmd)
             status = shellcmd(cmd)
-            if status['stderr'] != 'None' and status['stderr'].find("Notice") == False:
+            if status['stderr'] != '': #and status['stderr'].find("Notice") == False:
                 print("         " + status['stderr'])
             # Increment date.
             cal_date = cal_date + datetime.timedelta(days=1)
+
         print("Done.")
         
         
@@ -459,6 +477,7 @@ class Kinematic:
     
 
     def get_orbits(self, year, start_doy, end_doy, 
+        overlap=False,
         clearup=True,
         rename=False):
         """Download daily IGS sp3 orbit files and overlap them.
@@ -492,8 +511,15 @@ class Kinematic:
         print(status['stderr'])
         
         status = shellcmd("ls sp3_dl/*.sp3")
+        
+    
         files = status['stdout'].split("\n")
         shellcmd("mkdir cat_sp3")   
+
+        if overlap:
+            ol_suffix = '_ol'
+        else:
+            ol_suffix = ''
         
         doy = start_doy
         for prev,item,nex in neighborhood(files):
@@ -504,20 +530,25 @@ class Kinematic:
             if item == "":
                 break
             if rename:
-                newfn = "cat_sp3/igs" + str(doy).zfill(3) + ".sp3"
+                newfn = "cat_sp3/igs" + str(doy).zfill(3) + ol_suffix + ".sp3"
             else:
                 yr = int(year) % 1000
-                newfn = "cat_sp3/igs" + str(yr) + str(doy).zfill(3) + ".sp3"
+                newfn = "cat_sp3/igs" + str(yr) + str(doy).zfill(3) + ol_suffix + ".sp3"
             try:
                 fn = open(newfn)
                 fn.close()
                 print("File for doy " + str(doy) + "already exists, skipping")
                 continue
             except IOError:
-                cmd = "cat " + prev + " " + item + " " + nex + \
-                " > " + newfn
-                print(cmd)
-                shellcmd(cmd)  
+                if overlap:
+                    cmd = "cat " + prev + " " + item + " " + nex + \
+                    " > " + newfn
+                    print(cmd)
+                    shellcmd(cmd)  
+                else:
+                    cmd = "mv {old} {new}".format(old=item, new=newfn)
+                    print(cmd)
+                    shellcmd(cmd)
             doy = doy + 1
         
         if clearup == True:
@@ -525,6 +556,11 @@ class Kinematic:
             shellcmd("rm -r sp3_dl")
             shellcmd("mv cat_sp3/* .")
             shellcmd("rm -r cat_sp3")
+    
+
+            shellcmd("mv sp3_dl/* .")
+            shellcmd("rm -r sp3_dl")
+        
         print("Done.")
              
     
@@ -895,7 +931,12 @@ if __name__ == "__main__":
         else:
             k.view_track_output(sys.argv[2],sys.argv[3],sys.argv[4])                
     elif sys.argv[1] == 'get_orbits':
-        k.get_orbits(sys.argv[2],sys.argv[3],sys.argv[4])
+        if len(sys.argv) == 6:
+            overlap = True
+        else:
+            overlap = False
+        print('Overlap mode: %s' %overlap)
+        k.get_orbits(sys.argv[2],sys.argv[3],sys.argv[4], overlap)
     elif sys.argv[1] == 'crx2rnx':
         k.crx2rnx(sys.argv[2].strip()) 
     else:

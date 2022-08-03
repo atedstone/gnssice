@@ -32,20 +32,22 @@ if __name__ == '__main__':
         help='For single files, day to finish processing, yyyy-mm-dd'
     )
 
-    parser.add_argument('-overlap', type=str, nargs=2, 
-        default=None,
-        help='window start time, followed by number of hours. e.g. -22:00:00 28')
+    parser.add_argument('-overlap', action='store_true', 
+        help='Produce overlapping RINEX files beginning at -22:00:00 and extending 28 hours.')
 
     args = parser.parse_args()
     rinex.observer = "Andrew Tedstone"
     rinex.institution = "University of Fribourg"
-    
-    print(args)
-    raise ValueError
 
     print ("----------------------------\nWindowed rinex file creation\n----------------------------")
     print ("Observer set as '" + rinex.observer + "'. Change in process_rinex if this is not correct!")
      
+    if args.overlap:
+        start_at = '-22:00:00'
+        window = 28
+    else:
+        start_at = '00:00:00'
+        window = 24
 
     # Daily Leica Files:
     if args.file_type == 'd':
@@ -58,12 +60,12 @@ if __name__ == '__main__':
 
         for fn in rinex_files:
             print ("Window overlap on " + fn)
-            rinex.window_overlap(fn,"-22:00:00",28) 
+            rinex.window_overlap(fn, start_at, window) 
         print("Finished.")
 
     # Single Leica File:                      
     elif args.file_type == 's':
-        rinex.window_overlap(args.filename, "-22:00:00", 28, 
+        rinex.window_overlap(args.filename, start_at, window,
                              leica=True,
                              site=args.site,
                              start_date=args.start, end_date=args.finish)
@@ -81,7 +83,7 @@ if __name__ == '__main__':
         print (status['stderr'])
         
         print ("Starting window overlap.")
-        rinex.window_overlap(fn,"-22:00:00",28) 
+        rinex.window_overlap(fn, start_at, window) 
         print ("Finished.")
 
     else: 
