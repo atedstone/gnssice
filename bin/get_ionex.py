@@ -48,7 +48,7 @@ def overlap(
         newfn = 'igsg{d}0_ol.{y}i'.format(d=str(doy).zfill(3), y=yr)
 
         if not os.path.exists(newfn):
-            fmt = 'igsg{d}.{y}i'
+            fmt = 'igsg{d}0.{y}i'
             prev = fmt.format(d=str(doy-1).zfill(3), y=yr)
             curr = fmt.format(d=str(doy).zfill(3), y=yr)
             nex = fmt.format(d=str(doy+1).zfill(3), y=yr)
@@ -65,23 +65,23 @@ if __name__ == '__main__':
     p.add_argument('doy_start', type=int, help='Day of year to start on')
     p.add_argument('doy_finish', type=int, help='Day of year to finish on')
 
-    p.add_argument('-do', type=str, action='extend', nargs='*', default=['download', 'unzip', 'overlap'])
+    p.add_argument('-do', type=str, choices=['all', 'download', 'unzip', 'overlap'], default='all')
 
     args = p.parse_args()
 
     yr = str(args.year % 1000).zfill(2)
 
-    if 'download' in args.do:
+    if args.do == 'all' or args.do == 'download':
         print('Downloading ...')
         download(yr, args.doy_start, args.doy_finish)
         print('\n')
 
-    if 'unzip' in args.do:
+    if args.do == 'all' or args.do == 'unzip':
         print('Unzipping ...')
         unzip()
         print('\n')
 
-    if 'overlap' in args.do:
+    if args.do == 'all' or args.do == 'overlap':
         print('Overlapping ...')
         overlap(yr, args.doy_start, args.doy_finish)
         print('\n')
