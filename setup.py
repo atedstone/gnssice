@@ -31,7 +31,7 @@ if write_version:
 with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
-scripts = [f for f in listdir(mypath) if path.isfile(os.path.join('./bin', f))]
+scripts = [os.path.join('./bin', f) for f in listdir('./bin') if path.isfile(os.path.join('./bin', f))]
 
 setup(
     name="PyGPS",
