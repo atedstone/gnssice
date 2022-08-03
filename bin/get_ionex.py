@@ -65,8 +65,8 @@ if __name__ == '__main__':
     p.add_argument('doy_start', type=int, help='Day of year to start on')
     p.add_argument('doy_finish', type=int, help='Day of year to finish on')
 
-    p.add_argument('-do', type=str, choices=['all', 'download', 'unzip', 'overlap'], default='all')
 
+    p.add_argument('-do', type=str, choices=['all', 'download', 'unzip', 'overlap'], default='all')
     args = p.parse_args()
 
     yr = str(args.year % 1000).zfill(2)
