@@ -136,7 +136,7 @@ dmypy.json
 *~
 
 # version file
-cassandra_fs_pp/version.py
+gnssice/version.py
 
 # End of https://www.gitignore.io/api/python
 .DS_Store

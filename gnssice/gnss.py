@@ -1,5 +1,5 @@
 #!/usr/bin/python
-"""Kinematic GPS Processing
+"""Kinematic GNSS Processing
 
 Classes:
 RinexConvert -- functionality for converting raw leica mdb files to the 
@@ -37,6 +37,9 @@ import logging
 import os
 import pandas as pd
 import re
+
+INSTITUTION = 'University of Fribourg'
+OBSERVER = 'Andrew Tedstone'
 
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
@@ -259,8 +262,8 @@ class RinexConvert:
     
     def __init__(self):
         """Initialise class variables."""
-        self.institution = "University of Fribourg"
-        self.observer = "Andrew Tedstone"
+        self.institution = INSTITUTION
+        self.observer = OBSERVER
         
 
     def leica2rinex(self, input_file, site, output_file):
@@ -445,7 +448,7 @@ class RinexConvert:
         
        
 class Kinematic:
-    """Kinematic GPS processing functionality, utilising Track and Gamit."""
+    """Kinematic GNSS processing functionality, utilising Track and Gamit."""
     
     def __init__(self):
         self.ion_stats = None
@@ -878,7 +881,7 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         print ("""
         This is the command line interface to gps. Examine the module
-        code (gps.py) for full information. 
+        code (gnss.py) for full information. 
         
         Usage:
          view_track_output [base] [rover] [doy] [file_type(default=NEU)]

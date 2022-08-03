@@ -296,7 +296,7 @@ fprintf('Removing outliers\n');
 for r=1:iterations 
     if r==1
         fprintf(['Iteration ',num2str(r),' of ' num2str(iterations)]);
-        xs=RankOrderFilter(xi_detrended(1:(990/interval):end),(990/interval),50);
+        xs=RankOrderFilter(xi_detrended(1:(990/interval):end),(990/interval),50);  % 50 = 50th percentile = median
         xs=interp1(ti(1:(990/interval):end),xs,ti,'linear');
         fprintf('. ');
         ys=RankOrderFilter(yi(1:(990/interval):end),(990/interval),50);
