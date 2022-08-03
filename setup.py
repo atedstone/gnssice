@@ -16,7 +16,7 @@ version = '%s'
 short_version = '%s'
 """
     if filename is None:
-        filename = path.join(path.dirname(__file__), "pygps", "version.py")
+        filename = path.join(path.dirname(__file__), "gnssice", "version.py")
 
     a = open(filename, "w")
     try:
@@ -34,7 +34,7 @@ with open("README.md", encoding="utf-8") as fh:
 scripts = [os.path.join('./bin', f) for f in listdir('./bin') if path.isfile(os.path.join('./bin', f))]
 
 setup(
-    name="PyGPS",
+    name="GNSSIce",
     version=FULLVERSION,
     description="Kinematic GNSS processing for ice flow",
     long_description=long_description,
@@ -42,7 +42,7 @@ setup(
     url="",
     author="Andrew Tedstone",
     license="BSD-3",
-    packages=["pygps"],
+    packages=["gnssice"],
     install_requires=["pandas", "matplotlib", "scipy", "statsmodels"],
     scripts=scripts,
     zip_safe=False,
