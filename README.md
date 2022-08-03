@@ -219,6 +219,24 @@ gps.py crx2rnx <suffix, e.g. 10d>
  
 Overlap/window the kellyville rinex files: see 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
 
+
+### Optional: IONEX files
+
+Recommended for long baselines, e.g. > 100 km. See also the TRACK help info and Doyle et al. (2014) supplementary methods.
+
+IONEX files can be obtained from: ftp://igs-final.man.olsztyn.pl/pub/gps_data/GPS_IONO/cmpcmb/
+
+There is a simple helper script, get_ionex.py, which can be modified to download IONEX files as needed.  
+
+Remember to decompress the files (e.g. `gunzip *.Z`).
+
+TRACK needs to be told about these files by adding the `IONEX_FILE` option in the cmd file:
+
+```bash
+ IONEX_FILE ionex/igsg<day>0.<S09>i
+``` 
+
+
 ### Update `obs_file`
 
 Check the `obs_file` file extensions in the track cmd files (in gps_config) - they need to be set to the correct year suffix, otherwise you'll get 'olding' errors from track.
@@ -374,7 +392,11 @@ http://www.geod.nrcan.gc.ca/online_data_e.php
 
 N.b. PPP services don't necessarily appear to give locations accurate enough by themselves - you do have to process the measurements kinematically through track/process_dgps.
  
-Now run `process_dgps.py` for each rover site you wish to process.
+Now run `process_dgps.py` for each rover site you wish to process. Or, run TRACK manually, similar to this:
+
+```bash
+track -f gps_config/track_rusn.cmd -d 137 -s 1650083.1597 1856832.1270 5856429.0647 0.1 0.15 1 rusb lev5 22 > lev5_rusb_2022_137.out
+```
 
 Copy the GEOD results files into your main GPS processing directory. You'll then be able to concatenate the output GEOD file to the main rover dataset when you run concatenate_geod. 
 
@@ -424,6 +446,15 @@ This could be considered an analysis task. TO-DO: create script to estimate seas
 	
 
 ## Other information
+
+### Additional notes about TRACK GEOD files
+
+Column descriptions:
+
+* `# (DD)` becomes `N` when read by the functions in `gpspp`. It specifies the number of double differences per epoch. Per TRACK docs, this should be greater than 0; per Doyle et al. (2014) this could be thresholded at > 4. 
+* `NotF` means 'Not Fixed', i.e. the number of ambiguities that have not been fixed to integers in that epoch.
+* `#BF` means the number of ambiguities that are needed for the data being analysed.
+
 
 ### Trimble files
 
