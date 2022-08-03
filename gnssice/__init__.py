@@ -1,7 +1,7 @@
-from pygps import gps, gpspp
+from gnssice import gnss, pp
 
 try:
-    from pygps.version import version as __version__  # noqa
+    from gnssice.version import version as __version__  # noqa
 except ImportError:  # pragma: no cover
     raise ImportError(
         "package is not properly installed. If you are "
