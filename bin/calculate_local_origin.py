@@ -20,9 +20,9 @@ args = p.parse_args()
 geod = pd.read_parquet(args.geod_file)
 
 # We have to recalculate local cartesian for pre_res first 100 points as these are not saved in pre_res.
-pre_res_xyz = gpspp.ell2xyz(geod['Latitude'].iloc[0:100] * (math.pi/180),
-                           geod['Longitude'].iloc[0:100] * (math.pi/180),
-                           geod['Height'].iloc[0:100]) 
+pre_res_xyz = pp.ell2xyz(geod['Latitude'].iloc[0:100] * (math.pi/180),
+                         geod['Longitude'].iloc[0:100] * (math.pi/180),
+                         geod['Height'].iloc[0:100]) 
 
 x = np.median(pre_res_xyz['x'])
 y = np.median(pre_res_xyz['y'])
