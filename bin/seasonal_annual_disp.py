@@ -15,7 +15,7 @@ def load_xyz(files):
     for f in files:
         store.append(pd.read_hdf(f, key='xyz'))
     xyz = pd.concat(store, axis=0)
-    return files
+    return xyz
 
 def make_contiguous(df):
     # Coarsen the time series and interpolate over any gaps.
@@ -28,14 +28,14 @@ def make_contiguous(df):
 def backdate(df, start='2021-05-01', freq='1H', sample=1000):
     # To estimate 1 May to 1 May displacement, for some sites we need to extend
     # the time range a bit.
-    if xyz.index[0] > pd.Timestamp(start):
+    if df.index[0] > pd.Timestamp(start):
         # Make a synthetic time series between 1 May and the start of the series
-        synth_ts = pd.date_range(start, xyz.index[0], freq=freq)
+        synth_ts = pd.date_range(start, df.index[0], freq=freq)
 
         # Use the first n. sampled hours.
-        X = xyz.index[0:sample].to_julian_date()
+        X = df.index[0:sample].to_julian_date()
         X = sm.add_constant(X)
-        y = xyz.x.iloc[0:sample]
+        y = df.x.iloc[0:sample]
         m = sm.OLS(y, X)
         f = m.fit()
 
@@ -43,7 +43,7 @@ def backdate(df, start='2021-05-01', freq='1H', sample=1000):
         pred = f.predict(sm.add_constant(synth_ts.to_julian_date()))
 
         newx = pd.Series(pred, index=synth_ts, name='x').to_frame()
-        xyzi = pd.concat((newx, xyzi), axis=0)
+        xyzi = pd.concat((newx, df), axis=0)
     return xyzi
 
 def calculate_disps(df, years, periods):
@@ -79,7 +79,9 @@ if __name__ == '__main__':
     # Eventually could wrap this logic up further, so that the script can process
     # every site then export to a spreadsheet.
 
-    files = ['lev5_rusb_2021_129_242_GEOD.h5', 'lev5_rusb_2022_137_138_GEOD.h5']
+    #files = ['lev5_rusb_2021_129_242_GEOD.h5', 'lev5_rusb_2022_137_138_GEOD.h5']
+    #files = ['lev6_rusb_2021_126_265_GEOD.h5', 'lev6_rusb_2022_134_135_GEOD.h5']
+    files = ['f003_rusb_2021_126_214_GEOD.h5', 'f003_rusb_2022_131_131_GEOD.h5']
 
     periods = {
         'Annual':[(5,1), (4,30)],
