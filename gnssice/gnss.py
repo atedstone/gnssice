@@ -585,7 +585,7 @@ class Kinematic:
     def track(self, base, rover, 
         year, doy_start, doy_end, 
         show_plot=True, 
-        use_auto_qa=True, spearman_threshold=None, rms_threshold=20):
+        use_auto_qa=True, spearman_threshold=None, rms_threshold=22.5):
         """Wrapper to track kinematic processing.
         
         Processing takes one of two slightly different approaches. With 
@@ -883,8 +883,12 @@ class Kinematic:
         plt.figure()
         
         plt.plot(data['dEast'], data['dNorth'],
-                    ms=5, c='tab:blue', marker='x', markeredgewidth=1, linestyle='none',
-                    label='Position')
+                    c='tab:blue', marker='.', linestyle='none',
+                    label='Positions', alpha=0.2)
+        only_fixed = data[data['NotF'] == 0]
+        plt.plot(only_fixed['dEast'], only_fixed['dNorth'],
+                    c='tab:orange', marker='.', linestyle='none',
+                    label='Position (unfixed epoches removed)', alpha=0.2)
         plt.plot(data['dEast'].iloc[0],data['dNorth'].iloc[0],
                  c='tab:red', marker='+', markersize=10,
                  label='Start')
