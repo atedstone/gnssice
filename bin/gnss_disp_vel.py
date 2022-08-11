@@ -165,6 +165,7 @@ else:
         df = pp.remove_displacement_outliers(df, args.sample_freq, iterations=2)
         return df
 
+    print('*** Checking for different occupation periods ***')
     # Count number of daily observations
     counts = geod_neu_xy.x.resample('1D').count().to_frame()
     counts['type'] = counts['x'].apply(occ_type)
@@ -232,11 +233,14 @@ else:
         store.append(pxyz)
 
     filtd = pd.concat(store, axis=0)
+    print('*** End of period-based processing ***')
 
     # Restore to original frequency and interpolate; adds a flag column named 'interpolated'
+    print('Regularising whole series')
     filtd_i = pp.regularise(filtd, args.sample_freq)
 
     # Do Gaussian filtering - this df does not have interpolated column
+    print('Gaussian filtering whole series')
     filtd_disp = pp.smooth_displacement(filtd_i, 7200) #7200secs ~ 2hours
 
     # Sub-set data to retain only original data samples (modified by Gaussian filtering)
@@ -244,6 +248,7 @@ else:
     xyz = xyz[filtd_i.interpolated == 0]
 
     # Calculate velocities
+    print('Calculating velocities')
     v_24h = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz)
     maxperday = pd.Timedelta('1D') / pd.Timedelta(args.sample_freq)
     dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
