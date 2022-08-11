@@ -383,7 +383,23 @@ def calculate_daily_velocities(
             return pd.concat([v_24h, f], axis='columns')
 
     return v_24h
-    
+   
+
+def v_mult(
+    window : str
+    ) -> float:
+    """
+    Given a pandas window/offset string, Calculate the multipler needed to 
+    convert displacement to m/yr.
+
+    Info on to_offset:
+    https://stackoverflow.com/questions/40223470/how-do-i-get-at-the-pandas-offsets-object-given-an-offset-string
+    """
+    offset = to_offset(window)
+    year = pd.Timedelta(days=YEAR_LENGTH_DAYS)
+    multiplier = year / offset
+    return multiplier
+
 
 def calculate_short_velocities(
     x : pd.Series,
@@ -395,12 +411,7 @@ def calculate_short_velocities(
     :param data: Series of along-track displacement to convert to velocity.
     :param window: pandas Offset str
     """
-    # Calculate multipler to metres/year
-    # https://stackoverflow.com/questions/40223470/how-do-i-get-at-the-pandas-offsets-object-given-an-offset-string
-    offset = to_offset(window)
-    year = pd.Timedelta(days=YEAR_LENGTH_DAYS)
-    multiplier = year / offset
-
+    multiplier = v_mult(window)
     vs = (x.shift(freq=window) - x) * multiplier
     return vs 
 
