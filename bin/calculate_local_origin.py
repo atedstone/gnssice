@@ -9,6 +9,7 @@ from dask import dataframe as dd
 import argparse
 import math
 import numpy as np
+import os
 
 from gnssice import pp
 
@@ -16,6 +17,9 @@ p = argparse.ArgumentParser('Calculate and save origin coordinates of local cart
 p.add_argument('site', type=str, help='Name of site')
 p.add_argument('geod_file', type=str, help='Filepath/name of GEOD parquet file from which to take origin coordinates')
 args = p.parse_args()
+
+if os.path.exists('origin_%s.csv' %args.site):
+    raise IOError('Origin file for this site already exists!')
 
 geod = pd.read_parquet(args.geod_file)
 
