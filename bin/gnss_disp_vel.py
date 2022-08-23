@@ -153,9 +153,10 @@ else:
 
     def process_daily_occups(df):
         # Find the modal hour of this period's observations
-        occ_time = '%sH' %int(mode(df.index.hour)[0])
+        df = pp.filter_positions(df, thresh_N=3, thresh_NotF=3)
+        #occ_time = '%sH' %int(mode(df.index.hour)[0])
         # Use this modal hour to place the index of the mean positions at day:hour.
-        df = df.resample('1D', offset=occ_time).mean().rolling('5D', center=True).mean()
+        #df = df.resample('1D', offset=occ_time).mean().rolling('10D', center=True).mean()
         return df
 
     def process_cont_occups(df):
@@ -254,11 +255,21 @@ else:
     dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
     v_24h = pd.DataFrame({'v_24h':v_24h, 'obs_cover_percent':dayperc}, index=v_24h.index)
 
-
     # Longer-term velocities, following Doyle 2014 approach
     d6h = filtd_disp.resample('6H').mean()
     p15d = d6h.resample('15D').first()
     v15d = (p15d.x.shift(1) - p15d.x) * pp.v_mult('15D')
+
+    # Regression-based approach
+    # !!TODO!! implement a mix of Doyle for continuous and this for daily occs...
+    # Want to apply this on the most raw data possible? i.e. not regliarsed and smoothed, as these
+    # are not helpful operations on daily data
+    # This doesn't really work on data filtered with a 'standard' approach - 
+    # only currently works with geod_neu_xy. What would a good filtering strategy for
+    # daily data look like?
+    # Or do these need to be reprocessed by TRACK with ambiguities fixed?
+    p30d = filtd.x.resample('30D').apply(pp.position_by_regression)
+    v30d = (p30d.shift(1) - p30d) * pp.v_mult('30D')
 
     # consider calculating uncertainties? 
     # To what degree is this RMS? How do uncertainties reduce by avging?
@@ -276,6 +287,36 @@ xyz.to_hdf(output_to, 'xyz', format='table')
 
 print('Finished.')
 print('Main output file: %s.' %output_to)
+
+
+### Try a flexible window length approach on raw data.
+filt_manual = pp.filter_positions(geod_neu_xy)
+# Doyle et al use 6H positions
+# Can I use regression across several days to estimate the accuracy/quality of the single-day-obs used?
+fmanres = filt_manual.x[(filt_manual.index.hour >= 9) & (filt_manual.index.hour <= 15)].resample('1D').mean()
+
+fmanres['2021-12-04'] = np.nan
+fmanres['2021-12-05'] = np.nan
+## Velocity over a minimum window length, looking ahead for the first position value at least x days away from current obs, otherwise more.
+# need to start with a 'good' date
+procdate = pd.Timestamp('2021-05-02')
+store = []
+while True:
+    loc_today = fmanres.loc[procdate]
+    loc_next = fmanres.loc[procdate + pd.Timedelta(days=15):]
+    loc_next = loc_next.dropna()
+    if len(loc_next) == 0:
+        print('End of series')
+        break
+    date_next = loc_next.index[0]
+    loc_next = loc_next.iloc[0]
+    print(loc_next)
+    tdiff = date_next - procdate
+    diff = np.abs(loc_next - loc_today)
+    vel = diff * pp.v_mult('%sD'%tdiff.days)
+    store.append(dict(start=procdate, finish=date_next, disp=diff, velocity=vel))
+    procdate = date_next
+outp = pd.DataFrame(store)
 
 
 ##################################################################
@@ -348,9 +389,11 @@ if not args.noplot:
         # plt.savefig('%s_v6h.png' %output_to_pre, dpi=300)
 
         plt.figure()
-        v15d.plot(drawstyle='steps-pre')
-        plt.title('%s 15 Day velocity' %args.site)
+        v15d.plot(drawstyle='steps-pre', label='15d')
+        v30d.plot(drawstyle='steps-pre', label='30d')
+        plt.title('%s 15/30 Day velocity' %args.site)
         plt.ylabel('m/yr')
+        plt.legend()
         plt.savefig('%s_v15d.png' %output_to_pre, dpi=300)
 
         plt.show()
