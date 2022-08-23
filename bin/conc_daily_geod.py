@@ -14,6 +14,9 @@ import pandas as pd
 import argparse
 import os
 
+import warnings
+warnings.filterwarnings('ignore')
+
 from gnssice import gnss as gps
 
 def concatenate_daily_geod(
