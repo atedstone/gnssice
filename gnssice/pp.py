@@ -332,6 +332,55 @@ def smooth_displacement(
     return pd.concat((xs,ys,zs), axis='columns')
 
 
+def position_by_regression(
+    ser : pd.Series, 
+    center: bool=False, 
+    return_stats: bool=False
+    ) -> float | pd.Series:
+    """
+    Estimate value at end of timestamped Series (default) or center (option) using 
+    ordinary least squares regression through the Series.
+
+    Only works with Series containing at least 10 values.
+
+    Intended to be used in a resampling operation, e.g.:
+
+    >>> df.resample('10D').apply(position_by_regression)
+
+    >>> df.resample('10D').apply(position_by_regression, return_stats=True)
+
+    :param center: default is to compute value for last index of Series. If True, compute
+        value for center timestamp instead.
+    :param return_stats: if True, return pd.Series containing the computed value, the
+    OLS m and c parameters, the r-squared value.
+
+    """
+    # OLS regression does not work with NaNs.
+    ser = ser.dropna()
+    if len(ser) < 10:
+        return np.nan
+
+    # Fit model, using Julian calendar as exog
+    juld = ser.index.to_julian_date()
+    X = sm.add_constant(juld)
+    y = ser.values
+    m = sm.OLS(y, X)
+    f = m.fit()
+
+    # Compute value
+    if center:
+        t = juld[0] + ((juld[-1] - juld[0]) / 2)
+    else:
+        t = juld[-1]
+    v = f.params[1] * t + f.params[0]
+
+    if return_stats:
+        return pd.Series([v, f.params[1], f.params[0], f.rsquared],
+            index=['p', 'param_m', 'param_c', 'r2'])
+    else:
+        return v
+
+
 def detrend_z(
     data : pd.DataFrame,
     slope : float=None
