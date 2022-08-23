@@ -65,7 +65,7 @@ def calculate_disps(df, years, periods):
                 year_here = year
             en = pd.Timestamp(year_here, bounds[1][0], bounds[1][1], 23, 0)
             disp = xyzi.x.loc[en] - xyzi.x.loc[st]
-            disp = np.abs(np.round(disp, 1))
+            disp = np.abs(np.round(disp, 2))
             store_year[period_name] = disp
         store[year] = store_year
     return store
@@ -80,8 +80,11 @@ if __name__ == '__main__':
     # every site then export to a spreadsheet.
 
     #files = ['lev5_rusb_2021_129_242_GEOD.h5', 'lev5_rusb_2022_137_138_GEOD.h5']
-    #files = ['lev6_rusb_2021_126_265_GEOD.h5', 'lev6_rusb_2022_134_135_GEOD.h5']
-    files = ['f003_rusb_2021_126_214_GEOD.h5', 'f003_rusb_2022_131_131_GEOD.h5']
+    files = ['lev6_rusb_2021_126_265_GEOD.h5', 'lev6_rusb_2022_134_135_GEOD.h5']
+    #files = ['f003_rusb_2021_126_214_GEOD.h5', 'f003_rusb_2022_131_131_GEOD.h5']
+    #files = ['kanu_2021_122_2022_135_geod.h5']
+    #files = ['fs05_2021_126_2022_129_geod.h5']
+    
 
     periods = {
         'Annual':[(5,1), (4,30)],
