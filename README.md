@@ -19,8 +19,9 @@ This package provides functionality to kinematically process differential GNSS/G
     6a. Process 'temporary' fixes taken during redrilling/flights.
 8. `conc_daily_geod.py`: Concatenate daily track GEOD files to year.
 9. `calculate_local_origin.py`: Only if this is a new site, to calculate local origin position.
-10. `gnss_disp_vel.py`: Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities.
+10. `gnss_disp_vel.py`: Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
 11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future.
+12. `seasonal_annual_disp.py` : To calculate seasonal and annual displacements.
 
 Example using site **lev5**, 2021, days 129 to 242, without IONEX:
 
@@ -459,7 +460,13 @@ Some hints on a workable processing strategy:
 * Re-run the script.
 * If corrections due to pole re-drilling are needed then this functionality will first need to be implemented, as it was not (yet) needed for the high-elevation ice velocities campaign!
 
-For very short batches of data - i.e. where a site has been re-occupied for only minutes to hours - use `gnss_disp_vel.py` with the `-stake` option. This disables the smoothing procedures, as they are only applicable to longer time series data. In this case only `xyz` data will be saved to disk.
+This script can be used in at least two or three ways:
+
+1. Processing a batch of continuous occupation data. Supply just one parquet file.
+2. For a very short data batch - i.e. where a site has been re-occupied for only minutes to hours - use `gnss_disp_vel.py` with the `-stake` option. This disables the smoothing procedures, as they are only applicable to longer time series data. In this case only `xyz` data will be saved to disk.
+3. Or let the script process both continuous and daily occupation data automatically. Supply all the input parquet files, listed in time order. Do not provide `-stake`. Check the messages to make sure that each period has been identified correctly.
+
+The script applies different filtering and averaging approaches depending on whether a data period has been occupied continuously or only for a short period (e.g. an hour).
 
 
 ### Joining batches together
