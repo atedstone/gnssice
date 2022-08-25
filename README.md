@@ -144,18 +144,19 @@ At the time of writing, fleet requires the Linux 32 bit version.
 	 b. Add the `<RNXCMPdirectory>/bin/` to your unix path.
 
 	 
-## Note on gps.py functionality
-This file contains two classes used for Python-based GPS processing:
+## Note on gnss.py functionality
+
+This module contains two classes used for Python-based GPS processing:
 
 ```python
-gps.RinexConvert
-gps.Kinematic
+gnss.RinexConvert
+gnss.Kinematic
 ```
 
 To get full information on the module, at the command line run:
 
 ```bash
-pydoc gps   #(this displays documentation on the command line)
+pydoc gnss   #(this displays documentation on the command line)
 ```
 
  -or-
@@ -169,13 +170,13 @@ RinexConvert has been developed with Leica 530 and 1200 receivers in mind. Some 
 Some critical functions have been enabled to take advantage of python's command line functionality, i.e.
 
 ```bash
-python -m gps <function name> <arguments>
+python -m gnss <function name> <arguments>
 ```
 
 To find out what's available in this way, just do:
 
 ```bash	
-python -m gps
+python -m gnss
 ```
 
 See also http://docs.python.org/using/cmdline.html for more information.
@@ -225,7 +226,7 @@ sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely
 If files have `*.<yy>o` suffix you're all set, otherwise, if they are zipped, unzip the compressed rinex files using 7zip or whatever. Then convert to normal rinex i.e. from `*.10d` to `*.10o`:
 
 ```bash	
-gps.py crx2rnx <suffix, e.g. 10d>
+gnss.py crx2rnx <suffix, e.g. 10d>
 ```	    
  
 Overlap/window the kellyville rinex files: see 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
@@ -280,16 +281,19 @@ Make sure you create RINEX files for each site (i.e. run the script for each sit
 ## Do the kinematic processing
 
 Pre-requisites:
-	- Firstly, make sure you have appropriate `.cmd` files for your base station site. These are already available for the leverett transect (`track_levb.cmd` and `track_kely.cmd`, in `lev_gps_config`). My initial recommendation for shorter baselines with 10-15sec sampling would be to use `track_levb.cmd` as a template. For longer baselines with sparser sampling, use `track_kely.cmd` as a template.
-	- A number of additional arguments are hard-set in the cmd files created for each base station, (e.g. levb, kely), e.g. site_stats and bf_set. These probably don't need to be modified from their default values...
-	- Secondly, open `pygps/process_dgps.py` and ensure that the default parameters for processing with your base station are set up - follow the format in the file. Again, set initial values based on my recommendation above, unless you've more specific information to go on... 
+
+- Firstly, make sure you have appropriate `.cmd` files for your base station site. See existing options in the `lev_gps_config` repository. Initial recommendation for shorter baselines with 10-15sec sampling would be to use `track_levb.cmd` as a template. For longer baselines with sparser sampling, use `track_kely.cmd` as a template.
+- A number of additional arguments are hard-set in the cmd files created for each base station, (e.g. levb, kely), e.g. site_stats and bf_set. These probably don't need to be modified from their default values...
+- Open `pygps/process_dgps.py` and ensure that the default parameters for processing with your base station are set up - follow the format in the file. Again, set initial values based on recommendation above, unless you've more specific information to go on... 
 
 
 ### A-priori coordinates
 
 For first day for each site use a priori coordinates of each site derived from online 
- http://apps.gdgps.net/apps_file_upload.php (lev_apr_coords.txt)
- Also, webapp.geod.nrcan.gc.ca/geod/tools-outils/ppp.php
+
+- Often the best option: webapp.geod.nrcan.gc.ca/geod/tools-outils/ppp.php
+- Maybe: http://apps.gdgps.net/apps_file_upload.php
+
 Upload a rinex file and specify the day from which to return a priori coordinates.
 Subsequently select no. The program takes the APR coordinates from the previous days results.
 
@@ -315,15 +319,15 @@ process_dgps.py <base> <rover> <start DOY> <end DOY>
 	
 You don't have to process an entire site in one session. Enter the start day and guesstimate an appropriate end day. If you get fed up before the end day is reached, do `CTRL+C` to break out/halt the process (preferably between processing two days of data, rather than during).
 
-If providing a-priori coordinates (-ap): TRACK will not transfer negative values to the cmd file. Instead, put them positive here and add a negative sign (-) to the relevant field of the cmd file. Once the day using the a-priori coordinates has finished, remove the -ve sign. (Tech note: this is because convertc which is used to convert lat/lon to ECEF for the next day's a-priori coordinates always outputs positive values - hence need to remove -ve sign.)
+If providing a-priori coordinates (-ap): TRACK will not transfer negative values to the cmd file. Instead, put them positive here and make sure there is a negative sign (-) in the relevant field of the cmd file. Keep this negative sign in place for all subsequent processing of a site with a negative coordinate.
 
 `process_dgps.py` has defaults for `ion_stats`, `MW_WL` and `LG` set. These vary depending on the specified base station: at the time of writing, levb and kely are both supported.
 
-By default, track is set up to accept the day's results automatically, using an RMS approach. (A Spearman correlation approach is also available). The thresholds are set in the arguments to gps.Kinematic.track().
+By default, track is set up to accept the day's results automatically, using an RMS approach. (A Spearman correlation approach is also available). The thresholds are set in the arguments to gnss.Kinematic.track().
 
-Track can also be set up to require the user to accept every day manually - provide use_auto_qa=False as an argument to the call to gps.Kinematic.track in process_dgps. 
+Track can also be set up to require the user to accept every day manually - provide `use_auto_qa=False` as an argument to the call to `gnss.Kinematic.track` in `process_dgps`. 
 
-Initially, track will try to use the default ion_stats, MW_WL and LG parameters as specified in process_dgps.py.
+Initially, track will try to use the default ion_stats, MW_WL and LG parameters as specified in `process_dgps.py`.
 
 If you choose to reject track's initial results based on the default parameters, you can enter your own:
 
@@ -348,7 +352,7 @@ Quality identifiers:
 
 If RMS high and results not good, try (in the following order):
 
-1. Increase ion_stats, up to maybe 3 or 4. Choose the combination that gives the lowest rms and produces the closest to a straight line when plotted.
+1. Increase `ion_stats`, up to maybe 3 or 4. Choose the combination that gives the lowest rms and produces the closest to a straight line when plotted.
 2. Reduce MW_WL weighting from default=1 to say 0.5 if data appear noisy.
 3. Possibly try reducing LG weighting - especially for sites further away where the ionosphere has an increasingly large effect.
 
@@ -447,7 +451,7 @@ If this is the first occasion of processing for this site,  run
 calculate_local_origin.py <site> <Parquet file>
 ```
 
-### Displacements and velocities of batch
+### Displacements and velocities of batch(es)
 
 Use `gnss_disp_vel.py`.
 
@@ -466,12 +470,18 @@ This script can be used in at least two or three ways:
 2. For a very short data batch - i.e. where a site has been re-occupied for only minutes to hours - use `gnss_disp_vel.py` with the `-stake` option. This disables the smoothing procedures, as they are only applicable to longer time series data. In this case only `xyz` data will be saved to disk.
 3. Or let the script process both continuous and daily occupation data automatically. Supply all the input parquet files, listed in time order. Do not provide `-stake`. Check the messages to make sure that each period has been identified correctly.
 
+Running option 3 within an ipython terminal:
+
+```python
+>>> %run gnss_disp_vel.py <site> -f <file1.parquet> <file2.parquet> ...
+```
+
 The script applies different filtering and averaging approaches depending on whether a data period has been occupied continuously or only for a short period (e.g. an hour).
 
 
-### Joining batches together
+### Estimating seasonal and annual displacement
 
-This could be considered an analysis task. TO-DO: create script to estimate seasonal and annual velocities.
+This can be considered an analysis task.  See `seasonal_annual_disp.py`.
 	
 
 ## Other information
@@ -487,11 +497,11 @@ Column descriptions:
 
 ### Trimble files
 
-Net RS files are in T00 format. You'll need to runpkr00 utility to convert them to dat files first. gps.RinexConvert.window_overlap can then process the dat file, e.g.:
+Net RS files are in T00 format. You'll need to runpkr00 utility to convert them to dat files first. gnss.RinexConvert.window_overlap can then process the dat file, e.g.:
 
 ```python
-import gps
-rx = gps.RinexConvert()
+import gnss
+rx = gnss.RinexConvert()
 rx.window_overlap("file.dat","22:00:00",28)
 ```
 	
