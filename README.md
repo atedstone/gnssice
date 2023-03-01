@@ -7,7 +7,7 @@ This package provides functionality to kinematically process differential GNSS/G
 * Andrew Tedstone 2012-2014 and 2022.
 * Developed from previous processing routines written by Matt King, Andrew Sole, Ian Bartholomew.
 
-## Summary of workflow
+## Overview of workflow
 
 1. Ensure everything is installed.
 2. Download final orbit (sp3) files for year.
@@ -18,8 +18,8 @@ This package provides functionality to kinematically process differential GNSS/G
 7. `process_dgps.py`: Do track kinematic processing.
     6a. Process 'temporary' fixes taken during redrilling/flights.
 8. `conc_daily_geod.py`: Concatenate daily track GEOD files to year.
-9. `calculate_local_origin.py`: Only if this is a new site, to calculate local origin position.
-10. `gnss_disp_vel.py`: Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
+9. `calculate_local_origin.py`: Only if this is a new site, to calculate local origin position. If this is an existing site then you should already have a file 'origin_<site>.csv' available.
+10. `gnss_disp_vel.py`: Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities. Exclude periods of data based on the user-input exclusion file. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
 11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future.
 12. `seasonal_annual_disp.py` : To calculate seasonal and annual displacements.
 
@@ -45,19 +45,33 @@ process_dgps.py rusb lev5 2021 129 130 -ap x y z
 # Reduce site sigmas in cmd file then continue
 process_dgps.py rusb lev5 2021 130 242 
 
-# Post-process
+# Post-process the batch of data you just processed.
 conc_daily_geod.py rusb lev5 2021 129 242
 # Run next line only if no origin.csv file:
 calculate_local_origin.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
+# Calculate velocities of this batch of data...
 gnss_disp_vel.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
+# ...Or 'add' them onto an existing dataset.
+gnss_disp_vel.py lev5  -f ...
 ```
 
 
 ## Strategy for multi-year field campaigns
 
-This workflow treats each batch of data separately. There is no need to recompute velocities for the entire time series each time more data are acquired and processed.
+This workflow treats data in batches.
 
-Batches of data cannot span multiple years. So, if collecting data only once a year e.g. in springtime, the processing needs to be split into two batches separated by the change in year.
+A batch of data corresponds to a specific base-rover combination over a specific time frame. Batches of data cannot span multiple years. So, if collecting data only once a year e.g. in springtime, the processing needs to be split into two batches separated by the change in year.
+
+So, in the simple case of collecting data once a year and processing using the same base-rover combination, there will be two data batches:
+
+1. rover_base_year1_startDOY_endDOY
+2. rover_base_year2_startDOY_endDOY
+
+However, if a different base station needs to be used for certain periods, there will be multiple batches, e.g.
+
+1. rover_bas1_year1_100_200
+2. rover_bas2_year1_200_365
+3. rover_bas1_year2_0_100
 
 
 ## Summary of file types
@@ -429,7 +443,9 @@ Copy the GEOD results files into your main GPS processing directory. You'll then
 
 ## Concatenate the track files
 
-The GEOD track output files need to be combined together into one big file, removing the overlapping hours.
+The GEOD track output files need to be combined together, removing the overlapping hours.
+
+Use `conc_daily_geod.py` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation near the start of this readme). 
 
 
 ## Correcting pole leans
@@ -479,7 +495,7 @@ Running option 3 within an ipython terminal:
 The script applies different filtering and averaging approaches depending on whether a data period has been occupied continuously or only for a short period (e.g. an hour).
 
 
-### Estimating seasonal and annual displacement
+### Estimating seasonal and annual displacements
 
 This can be considered an analysis task.  See `seasonal_annual_disp.py`.
 	
@@ -504,7 +520,7 @@ import gnss
 rx = gnss.RinexConvert()
 rx.window_overlap("file.dat","22:00:00",28)
 ```
-	
+
 
 ### Problems with noisy pseudo-range data (lev7)
 

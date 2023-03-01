@@ -45,19 +45,27 @@ from copy import deepcopy
 
 from gnssice import pp
 
-p = argparse.ArgumentParser('Kinematic GPS: filter positions, calculate trajectories, calculate velocities.')
+p = argparse.ArgumentParser('Kinematic GPS: filter positions, calculate \
+    trajectories, calculate velocities. Output .h5 files of displacements, \
+    CSV file of longer-term velocities, plots of data.')
 p.add_argument('site', type=str, help='Name/identifier of site')
 
 p.add_argument('-f', dest='geod_file', type=str, nargs='+', 
     help='Path to GEOD parquet file(s) (output by conc_daily_geod.py)')
 
-p.add_argument('-optspath', type=str, default='', help='Location of options files if not current directory')
+p.add_argument('-optspath', type=str, default='', help='Location of options files if \
+    not current directory')
 p.add_argument('-noexcl', action='store_true')
 p.add_argument('-nocorrect', action='store_true')
 p.add_argument('-noplot', action='store_true')
-p.add_argument('-stake', action='store_true', help='Short-occupation stake mode. Do not apply any filtering or smoothing operations. This is useful for processing short-occupation fixes.')
+p.add_argument('-stake', action='store_true', help='Short-occupation stake mode. \
+    Do not apply any filtering or smoothing operations. This is useful for \
+    processing short-occupation fixes.')
 p.add_argument('-tz', type=str, help='Localise v_24h to timezone.')
 p.add_argument('-sample_freq', type=str, default='10s')
+p.add_argument('-noconc', action='store_true', help='By default, if multiple \
+    parquet files are specified then this script saves a new Parquet file \
+    containing them all. Give this flag to prevent the new Parquet file being created.')
 
 args = p.parse_args()
 
@@ -65,19 +73,35 @@ args = p.parse_args()
 geod_store = []
 for file in args.geod_file:
     geod = pd.read_parquet(file)
-    geod.index = pp.create_time_index(geod)
-    geod = geod.drop(labels=['YY', 'DOY', 'Seconds'], axis='columns')
-    geod_store.append(geod)
-geod = pd.concat(geod_store, axis=0)
+    if 'YY' in geod.columns:
+        geod.index = pp.create_time_index(geod)
+        geod = geod.drop(labels=['YY', 'DOY', 'Seconds'], axis='columns')
+        geod_store.append(geod)
+        geod = pd.concat(geod_store, axis=0)
+    else:
+        print('The parquet file provided appears to be a multi-batch file, continuing on this basis...')
 
 # Define output filenames
-output_to_pre = '{site}_{ys}_{ds}_{ye}_{de}_geod'.format(
+output_to_pre = '{site}_{ys}_{ds}_{ye}_{de}'.format(
     site=args.site,
     ys=geod.index[0].year,
     ds=geod.index[0].timetuple().tm_yday,
     ye=geod.index[-1].year,
     de=geod.index[-1].timetuple().tm_yday
 )
+
+# Save a full concatenated parquet file.
+if not args.noconc:
+    geod_out = '%s_geod.parquet' %output_to_pre
+    # Don't do this save if the proposed output file matches the user-provided file (based on filename)
+    if geod_out != args.geod_file[0]:
+        if os.path.exists(geod_out):
+            os.remove(geod_out)
+            print('Old concatenated parquet file %s found, replaced.' %geod_out)
+        geod.to_parquet(geod_out)
+
+# Other outputs are appended '_disp' rather than '_geod'.
+output_to_pre = output_to_pre + '_disp'
 output_to =  '%s.h5' %output_to_pre
 output_v24h_csv = '%s_v24h.csv' %output_to_pre
 
@@ -295,11 +319,11 @@ filt_manual = pp.filter_positions(geod_neu_xy)
 # Can I use regression across several days to estimate the accuracy/quality of the single-day-obs used?
 fmanres = filt_manual.x[(filt_manual.index.hour >= 9) & (filt_manual.index.hour <= 15)].resample('1D').mean()
 
-fmanres['2021-12-04'] = np.nan
-fmanres['2021-12-05'] = np.nan
+#fmanres['2021-12-04'] = np.nan
+#fmanres['2021-12-05'] = np.nan
 ## Velocity over a minimum window length, looking ahead for the first position value at least x days away from current obs, otherwise more.
-# need to start with a 'good' date
-procdate = pd.Timestamp('2021-05-02')
+# need to start with a 'good' date, how best to identify this?
+procdate = fmanres.index[0] #pd.Timestamp('2021-05-10')
 store = []
 while True:
     loc_today = fmanres.loc[procdate]
