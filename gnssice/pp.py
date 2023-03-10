@@ -112,7 +112,7 @@ def apply_exclusions(
     excl = pd.read_csv(exclusion_file, parse_dates=['excl_start', 'excl_end'])
     for ix, row in excl.iterrows():
         print('Excluding %s - %s' %(row.excl_start, row.excl_end))
-        data.at[row.excl_start:row.excl_end, :] = np.nan
+        data.loc[row.excl_start:row.excl_end, :] = np.nan
 
     return data
     
