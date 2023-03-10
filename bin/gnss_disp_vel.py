@@ -133,7 +133,7 @@ if is_notebook:
 else:
     print('Terminal mode')
     args = p.parse_args()
-    
+
 
 # -
 
@@ -414,6 +414,23 @@ if not args.stake:
 xyz.to_hdf(output_to, 'xyz', format='table')
 print('Finished.')
 print('Main output file: %s.' %output_to)
+
+# ## Development feature: subset the parquet file to a smaller file
+# Use this to save a smaller dataset which you can use with this Notebook during testing of filtering procedures. This saves a dataset which contains only unmodified data, i.e. no filtering has been applied to it!
+
+if is_notebook():
+    # Put in your dates of interest here
+    smaller_data = geod.loc['2021-10-01':'2021-12-31']
+    # Then let's work out the correct filename
+    smaller_fn = '{site}_{ys}_{ds}_{ye}_{de}.parquet'.format(
+        site=args.site,
+        ys=smaller_data.index[0].year,
+        ds=smaller_data.index[0].timetuple().tm_yday,
+        ye=smaller_data.index[-1].year,
+        de=smaller_data.index[-1].timetuple().tm_yday
+    )
+    smaller_data.to_parquet(smaller_fn)
+    print('Output to %s.' %smaller_fn)
 
 # ## Under development: calculating velocities over flexible window lengths
 
