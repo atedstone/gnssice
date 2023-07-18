@@ -10,11 +10,13 @@ import subprocess
 import argparse
 
 #######
+IONEX_PROVIDER = 'PL' # CDDIS, PL
 IONEX_SOURCE = 'ftp://igs-final.man.olsztyn.pl/pub/gps_data/GPS_IONO/cmpcmb/'
+#PL: 'https://cddis.nasa.gov/archive/gnss/products/ionex/'
 #######
 
 def download(
-    yr : str,
+    year : str,
     doy_start : int,
     doy_finish : int,
     dl_location: str=IONEX_SOURCE
@@ -23,14 +25,41 @@ def download(
     Download IONEX files to current working directory.
     """
     
+    yr = str(args.year % 1000).zfill(2)
+
     for doy in range(doy_start, doy_finish):
         d = str(doy).zfill(3)
-        fpath = '{yr}{d}/igsg{d}0.{yr}i.Z'.format(yr=yr, d=d)
-        fullp = os.path.join(dl_location, fpath)
-        cmd = 'wget %s' %fullp
-        print(cmd)
-        subprocess.check_output(cmd, shell=True)
+        if IONEX_PROVIDER == 'CDDIS':
+            fpath = '{yr}/{d}/igsg{d}0.{yr}i.Z'.format(yr=yr, d=d)
+        elif IONEX_PROVIDER == 'PL':
+            #fpath = '{yr}{d}/igsg{d}0.{yr}i.Z'.format(yr=yr, d=d)
+            fpath = '{yr}{d}'.format(yr=yr, d=d)
+        else:
+            raise ValueError('Unknown IONEX_PROVIDER')
 
+        # There was a change of filename format in 2023...
+        # https://files.igs.org/pub/resource/guidelines/Guidelines_For_Long_Product_Filenames_in_the_IGS_v2.0.pdf
+        print(yr, doy)
+        if ((int(yr) == 23 and int(doy) > 42) or (int(yr) > 23)) and IONEX_PROVIDER == 'PL':
+            print('in here')
+            # AAAVPPPTTT_YYYYDDDHHMM_LEN_SMP_[SSSSMRCCC_]CNT.FMT[.gz]
+            # IGS0OPSFIN_YYYYDDD0000_01D_02H_GIM.INX.gz
+            fpath = os.path.join(fpath,'IGS0OPSFIN_{y}{d}0000_01D_02H_GIM.INX.gz'.format(y=year, d=d))
+            rename = 'igsg{d}0.{yr}i.Z'.format(yr=yr, d=d)
+        else:
+            fpath = os.path.join(fpath, 'igsg{d}0.{yr}i.Z'.format(yr=yr, d=d))
+            rename = False
+
+        def mkcmd(fpath, rename):
+            fullp = os.path.join(dl_location, fpath)
+            if rename is not False:
+                cmd = 'wget -cO - %s > %s' %(fullp, rename)
+            else:
+                cmd = 'wget %s' %fullp
+            print(cmd)
+            return cmd
+        subprocess.check_output(mkcmd(fpath, rename), shell=True)
+    
 
 def unzip() -> None:
     """ Unzip IONEX files in current working directory. """
@@ -73,7 +102,8 @@ if __name__ == '__main__':
 
     if args.do == 'all' or args.do == 'download':
         print('Downloading ...')
-        download(yr, args.doy_start, args.doy_finish)
+        print('Provider:', IONEX_PROVIDER)
+        download(args.year, args.doy_start, args.doy_finish)
         print('\n')
 
     if args.do == 'all' or args.do == 'unzip':
