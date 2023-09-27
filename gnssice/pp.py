@@ -242,7 +242,7 @@ def regularise(
         data, 1 if interpolated.
     """
     if add_flag is not None:
-        flag = pd.Series(0, index=data.index, name=add_flag, dtype=np.int)
+        flag = pd.Series(0, index=data.index, name=add_flag, dtype=np.int32)
         flag[data.x.isna()] = np.nan
         flag = flag.resample(interval).asfreq()
 
