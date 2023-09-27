@@ -77,7 +77,7 @@ However, if a different base station needs to be used for certain periods, there
 ## Summary of file types
 
 * Orbit files: `igs<doy>.sp3`
-* Rinex files:
+* RINEX files:
 	- If compressed: `*.<yy>d`
 	- If uncompressed: `*.<yy>o`
 	- Daily files: 	 `<site>_<doy>0_d.<yy>o`
@@ -252,6 +252,8 @@ Recommended for long baselines, e.g. > 100 km. See also the TRACK help info and 
 
 IONEX files can be obtained from: ftp://igs-final.man.olsztyn.pl/pub/gps_data/GPS_IONO/cmpcmb/
 
+Or: see https://cddis.nasa.gov/Data_and_Derived_Products/GNSS/atmospheric_products.html
+
 There is a simple helper script, get_ionex.py, which can be modified to download IONEX files as needed.  
 
 Remember to decompress the files (e.g. `gunzip *.Z`).
@@ -290,6 +292,10 @@ In your terminal window, make sure you're in your scratch gps directory.
 Use `process_rinex.py`, run with `-h` to find out the options.
 
 Make sure you create RINEX files for each site (i.e. run the script for each site).
+
+After, you can delete any empty files:
+
+	find -size 0c -delete
 
 
 ## Do the kinematic processing
