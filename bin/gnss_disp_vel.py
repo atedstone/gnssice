@@ -62,6 +62,7 @@ import matplotlib.pyplot as plt
 import argparse
 from scipy.stats import mode
 from copy import deepcopy
+from glob import glob
 
 from gnssice import pp
 
@@ -96,12 +97,41 @@ print('')
 
 # ### Running in a Notebook? Put your parameters in below!
 
+# +
 # If running as a Notebook, provide your arguments to the ArgumentParser here.
-input_args = ['kanu', '-f', 'kanu_2021_122_2022_135_geod.parquet']
+input_args = ['lev5', '-f', 
+              'lev5_rusb_2021_129_242_GEOD.parquet',
+              'lev5_rusb_2022_137_138_GEOD.parquet', 
+              'lev5_rusb_2022_151_271_GEOD.parquet', 
+              'lev5_klsq_2022_271_323_GEOD.parquet',
+              'lev5_rusb_2023_128_129_GEOD.parquet']
 # And also provide the path where all your data are stored. 
 # The Notebook will use this to set the working directory.
-path_to_data = '/scratch/gnss/kanu'
+path_to_data = '/scratch/gnss/lev5/'
 
+# If running as a Notebook, provide your arguments to the ArgumentParser here.
+input_args = ['lev6', '-f', 
+              '*.parquet']
+# And also provide the path where all your data are stored. 
+# The Notebook will use this to set the working directory.
+path_to_data = '/scratch/gnss/lev6/'
+
+# If running as a Notebook, provide your arguments to the ArgumentParser here.
+input_args = ['f003', '-f', 
+              '*.parquet']
+# And also provide the path where all your data are stored. 
+# The Notebook will use this to set the working directory.
+path_to_data = '/scratch/gnss/f003/'
+
+# If running as a Notebook, provide your arguments to the ArgumentParser here.
+input_args = ['kanu', '-f', 
+              '*.parquet']
+# And also provide the path where all your data are stored. 
+# The Notebook will use this to set the working directory.
+path_to_data = '/scratch/gnss/kanu/'
+
+
+# -
 
 # ## Identify execution mode
 
@@ -110,6 +140,7 @@ def is_notebook() -> bool:
     """stackoverflow.com/"""
     try:
         shell = get_ipython().__class__.__name__
+        print('shell:', shell)
         if shell == 'ZMQInteractiveShell': 
             return True
         elif shell == 'TerminalInteractiveShell':
@@ -119,14 +150,16 @@ def is_notebook() -> bool:
     except NameError:
         return False
 
-if is_notebook: 
+if is_notebook(): 
     print('Notebook mode')
     args = p.parse_args(input_args)
     os.chdir(path_to_data)
     print('Working directory is now %s' %os.getcwd())
     if args.nbplot == 'widget':
+        print('widget')
         # %matplotlib widget
     elif args.nbplot == 'inline':
+        print('inline')
         # %matplotlib inline
     else:
         raise ValueError('Unknown matplotlib backend specified for Notebook. Only widget or inline are understood (provided %s)' %args.nbplot)
@@ -139,9 +172,16 @@ else:
 
 # ## Load data and organise output filenames
 
+# +
 # Load data and apply timestamp
 geod_store = []
-for file in args.geod_file:
+if len(args.geod_file) == 1:
+    print('Found:')
+    files = glob(args.geod_file[0])
+    print([f + ',' for f in files])
+else:
+    files = args.geod_file
+for file in files:
     geod = pd.read_parquet(file.strip())
     if 'YY' in geod.columns:
         geod.index = pp.create_time_index(geod)
@@ -150,6 +190,10 @@ for file in args.geod_file:
         geod = pd.concat(geod_store, axis=0)
     else:
         print('The parquet file provided appears to be a multi-batch file, continuing on this basis...')
+        
+geod = geod.sort_index()
+geod = geod[~geod.index.duplicated()]
+# -
 
 # Define output filenames
 output_to_pre = '{site}_{ys}_{ds}_{ye}_{de}'.format(
@@ -334,7 +378,7 @@ if not args.stake:
         if s == 1:
             # do daily processing
             print(message.format(type='daily'))
-            pxyz = process_daily_occups(pxyz)
+            #pxyz = process_daily_occups(pxyz)
         elif s == 2:
             # do continuous processing
             print(message.format(type='continuous'))
@@ -408,61 +452,14 @@ if not args.stake:
 
     print('24-hour velocities also exported to: %s.' %output_v24h_csv)
 
+v_24h
+
 # ## Save displacements
 
 # Save displacements to disk
 xyz.to_hdf(output_to, 'xyz', format='table')
 print('Finished.')
-print('Main output file: %s.' %output_to)
-
-# ## Development feature: subset the parquet file to a smaller file
-# Use this to save a smaller dataset which you can use with this Notebook during testing of filtering procedures. This saves a dataset which contains only unmodified data, i.e. no filtering has been applied to it!
-
-if is_notebook():
-    # Put in your dates of interest here
-    smaller_data = geod.loc['2021-10-01':'2021-12-31']
-    # Then let's work out the correct filename
-    smaller_fn = '{site}_{ys}_{ds}_{ye}_{de}.parquet'.format(
-        site=args.site,
-        ys=smaller_data.index[0].year,
-        ds=smaller_data.index[0].timetuple().tm_yday,
-        ye=smaller_data.index[-1].year,
-        de=smaller_data.index[-1].timetuple().tm_yday
-    )
-    smaller_data.to_parquet(smaller_fn)
-    print('Output to %s.' %smaller_fn)
-
-# ## Under development: calculating velocities over flexible window lengths
-
-### Try a flexible window length approach on raw data.
-filt_manual = pp.filter_positions(geod_neu_xy)
-# Doyle et al use 6H positions
-# Can I use regression across several days to estimate the accuracy/quality of the single-day-obs used?
-fmanres = filt_manual.x[(filt_manual.index.hour >= 9) & (filt_manual.index.hour <= 15)].resample('1D').mean()
-
-#fmanres['2021-12-04'] = np.nan
-#fmanres['2021-12-05'] = np.nan
-## Velocity over a minimum window length, looking ahead for the first position value at least x days away from current obs, otherwise more.
-# need to start with a 'good' date, how best to identify this?
-procdate = fmanres.index[0] #pd.Timestamp('2021-05-10')
-store = []
-while True:
-    loc_today = fmanres.loc[procdate]
-    loc_next = fmanres.loc[procdate + pd.Timedelta(days=15):]
-    loc_next = loc_next.dropna()
-    if len(loc_next) == 0:
-        print('End of series')
-        break
-    date_next = loc_next.index[0]
-    loc_next = loc_next.iloc[0]
-    print(loc_next)
-    tdiff = date_next - procdate
-    diff = np.abs(loc_next - loc_today)
-    vel = diff * pp.v_mult('%sD'%tdiff.days)
-    store.append(dict(start=procdate, finish=date_next, disp=diff, velocity=vel))
-    procdate = date_next
-outp = pd.DataFrame(store)
-
+print('Main output file: %s ' %output_to)
 
 # ## Diagnostic plots of final outputs
 
@@ -485,6 +482,8 @@ if not args.noplot and args.stake:
 
 if not args.noplot and not args.stake:
     do_plot = True
+else:
+    do_plot = False
 
 # Plot X versus Y
 if do_plot:
@@ -559,3 +558,54 @@ if do_plot:
     plt.ylabel('m/yr')
     plt.legend()
     plt.savefig('%s_v15d.png' %output_to_pre, dpi=300)
+
+# ## Development feature: subset the parquet file to a smaller file
+# Use this to save a smaller dataset which you can use with this Notebook during testing of filtering procedures. This saves a dataset which contains only unmodified data, i.e. no filtering has been applied to it!
+
+if is_notebook():
+    # Put in your dates of interest here
+    smaller_data = geod.loc['2021-10-01':'2021-12-31']
+    # Then let's work out the correct filename
+    smaller_fn = '{site}_{ys}_{ds}_{ye}_{de}.parquet'.format(
+        site=args.site,
+        ys=smaller_data.index[0].year,
+        ds=smaller_data.index[0].timetuple().tm_yday,
+        ye=smaller_data.index[-1].year,
+        de=smaller_data.index[-1].timetuple().tm_yday
+    )
+    smaller_data.to_parquet(smaller_fn)
+    print('Output to %s.' %smaller_fn)
+
+# ## Under development: calculating velocities over flexible window lengths
+
+### Try a flexible window length approach on raw data.
+filt_manual = pp.filter_positions(geod_neu_xy)
+# Doyle et al use 6H positions
+# Can I use regression across several days to estimate the accuracy/quality of the single-day-obs used?
+fmanres = filt_manual.x[(filt_manual.index.hour >= 9) & (filt_manual.index.hour <= 15)].resample('1D').mean()
+
+#fmanres['2021-12-04'] = np.nan
+#fmanres['2021-12-05'] = np.nan
+## Velocity over a minimum window length, looking ahead for the first position value at least x days away from current obs, otherwise more.
+# need to start with a 'good' date, how best to identify this?
+procdate = fmanres.index[0] #pd.Timestamp('2021-05-10')
+store = []
+while True:
+    loc_today = fmanres.loc[procdate]
+    loc_next = fmanres.loc[procdate + pd.Timedelta(days=15):]
+    loc_next = loc_next.dropna()
+    if len(loc_next) == 0:
+        print('End of series')
+        break
+    date_next = loc_next.index[0]
+    loc_next = loc_next.iloc[0]
+    print(loc_next)
+    tdiff = date_next - procdate
+    diff = np.abs(loc_next - loc_today)
+    vel = diff * pp.v_mult('%sD'%tdiff.days)
+    store.append(dict(start=procdate, finish=date_next, disp=diff, velocity=vel))
+    procdate = date_next
+outp = pd.DataFrame(store)
+
+
+
