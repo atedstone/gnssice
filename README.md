@@ -14,12 +14,12 @@ This package provides functionality to kinematically process differential GNSS/G
 3. (Optional): Download IONEX files.
 4. Copy base and rover Leica files to working directory.
 5. Obtain third party data to cover known gaps in our base record.
-6. `process_rinex.py`: Convert leica files to daily RINEX files (base and rover)
-7. `process_dgps.py`: Do track kinematic processing.
+6. `process_rinex`: Convert leica files to daily RINEX files (base and rover)
+7. `process_dgps`: Do track kinematic processing.
     6a. Process 'temporary' fixes taken during redrilling/flights.
-8. `conc_daily_geod.py`: Concatenate daily track GEOD files to year.
-9. `calculate_local_origin.py`: Only if this is a new site, to calculate local origin position. If this is an existing site then you should already have a file 'origin_<site>.csv' available.
-10. `gnss_disp_vel.py`: Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities. Exclude periods of data based on the user-input exclusion file. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
+8. `conc_daily_geod`: Concatenate daily track GEOD files to year.
+9. `calculate_local_origin`: Only if this is a new site, to calculate local origin position. If this is an existing site then you should already have a file 'origin_<site>.csv' available.
+10. `gnss_disp_vel.py`: Preferentially run interactively/as notebook. Transform coordinates, filter data, convert to along/across-track displacements, calculate velocities. Exclude periods of data based on the user-input exclusion file. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
 11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future.
 12. `seasonal_annual_disp.py` : To calculate seasonal and annual displacements.
 
@@ -37,18 +37,18 @@ gps.py get_orbits 2021 129 242
 mkdir lev5
 cp lev5
 cp /location/Default...m00 .
-process_rinex.py lev5 Default...m00 s -start 2021-05-09 -finish 2021-08-30
+process_rinex lev5 Default...m00 s -start 2021-05-09 -finish 2021-08-30
 
 # Run TRACK
 # First get a-priori coordinates, and increase sigmas for cmd file site sigmas
-process_dgps.py rusb lev5 2021 129 130 -ap x y z
+process_dgps rusb lev5 2021 129 130 -ap x y z
 # Reduce site sigmas in cmd file then continue
-process_dgps.py rusb lev5 2021 130 242 
+process_dgps rusb lev5 2021 130 242 
 
 # Post-process the batch of data you just processed.
-conc_daily_geod.py rusb lev5 2021 129 242
+conc_daily_geod rusb lev5 2021 129 242
 # Run next line only if no origin.csv file:
-calculate_local_origin.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
+calculate_local_origin lev5 lev5_rusb_2021_129_242_GEOD.parquet
 # Calculate velocities of this batch of data...
 gnss_disp_vel.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
 # ...Or 'add' them onto an existing dataset.
@@ -134,7 +134,7 @@ If you haven't already got it, clone the gnssice repo, change into its directory
 pip install -e .
 ```
 
-This means that it won't matter where you then do your main working - your system will automatically find the scripts in the `bin` folder. 
+This means that it won't matter where you then do your main working, the scripts will always be accessible. *(Note: the command line interface is based on setuptools' entry points. In general, each entry point is linked to a dedicated Python script. You can see a list of all these entry points in `setup.cfg`.)*
 
 Set up a working directory in your scratch space, e.g. `/scratch/<USER>/gps_workspace_<YEAR>/`. 
 
@@ -292,7 +292,7 @@ We can convert to RINEX files which are windowed to 28hrs duration: from 22:00 t
 
 In your terminal window, make sure you're in your scratch gps directory.
 
-Use `process_rinex.py`, run with `-h` to find out the options.
+Use `process_rinex`, run with `-h` to find out the options.
 
 Make sure you create RINEX files for each site (i.e. run the script for each site).
 
@@ -307,7 +307,7 @@ Pre-requisites:
 
 - Firstly, make sure you have appropriate `.cmd` files for your base station site. See existing options in the `lev_gps_config` repository. Initial recommendation for shorter baselines with 10-15sec sampling would be to use `track_levb.cmd` as a template. For longer baselines with sparser sampling, use `track_kely.cmd` as a template.
 - A number of additional arguments are hard-set in the cmd files created for each base station, (e.g. levb, kely), e.g. site_stats and bf_set. These probably don't need to be modified from their default values...
-- Open `pygps/process_dgps.py` and ensure that the default parameters for processing with your base station are set up - follow the format in the file. Again, set initial values based on recommendation above, unless you've more specific information to go on... 
+- Open `process_dgps.py` and ensure that the default parameters for processing with your base station are set up - follow the format in the file. Again, set initial values based on recommendation above, unless you've more specific information to go on... 
 
 
 ### A-priori coordinates
@@ -331,13 +331,13 @@ Open a terminal window at the scratch location.
 With loose `site_stats` in the TRACK cmd file, run only the first day of the site using a-priori coordinates:
 
 ```bash
-process_dgps.py <base> <rover> <start DOY> <start DOY +1> -ap <X> <Y> <Z>
+process_dgps <base> <rover> <start DOY> <start DOY +1> -ap <X> <Y> <Z>
 ```
 
 Once this has completed, tighten the `site_stats` in the TRACK cmd file, then run:
 
 ```bash
-process_dgps.py <base> <rover> <start DOY> <end DOY>
+process_dgps <base> <rover> <start DOY> <end DOY>
 ```
 	
 You don't have to process an entire site in one session. Enter the start day and guesstimate an appropriate end day. If you get fed up before the end day is reached, do `CTRL+C` to break out/halt the process (preferably between processing two days of data, rather than during).
@@ -413,7 +413,7 @@ There are likely to be multiple temporary positions in one raw leica file, corre
 
 It's probably easiest to do this in a completely separate gps processing folder, also with the gps_config folder pulled down from the SVN repository, in order to avoid filename clashes. Also copy over the relevant base station and orbit files.
 
-First convert the leica file to rinex file(s) using process_rinex. Then window this rinex file into separate rinex files for each rover. Flight timings are very helpful here. You can first check the contents of the rinex file:
+First convert the leica file to rinex file(s) using process_rinex. Then window this rinex file into separate rinex files for each rover. Flight timings are very helpful here. You can first check the contents of the rinex file, for example using teqc:
 
 ```bash
 teqc +qc rinex_file_name
@@ -439,9 +439,9 @@ Get the APR coordinates to give to track by uploading the rinex file to:
 http://www.geod.nrcan.gc.ca/online_data_e.php
 (The other PPP service linked to above doesn't seem to work for these small rinex files. Also, the estimate in the rinex header is also generally incorrect after windowing to each site.)
 
-N.b. PPP services don't necessarily appear to give locations accurate enough by themselves - you do have to process the measurements kinematically through `process_dgps.py`.
+N.b. PPP services don't necessarily appear to give locations accurate enough by themselves - you do have to process the measurements kinematically through `process_dgps`.
  
-Now run `process_dgps.py` for each rover site you wish to process. Or, run TRACK manually, similar to this:
+Now run `process_dgps` for each rover site you wish to process. Or, run TRACK manually, similar to this:
 
 ```bash
 track -f gps_config/track_rusb.cmd -d 137 -s 1650083.1597 1856832.1270 5856429.0647 0.1 0.15 1 rusb lev5 22 > lev5_rusb_2022_137.out
@@ -454,7 +454,7 @@ Copy the GEOD results files into your main GPS processing directory. You'll then
 
 The GEOD track output files need to be combined together, removing the overlapping hours.
 
-Use `conc_daily_geod.py` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation near the start of this readme). 
+Use `conc_daily_geod` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation near the start of this readme). 
 
 
 ## Correcting pole leans
@@ -473,7 +473,7 @@ If older data for this site has already been post-processed then a file, `origin
 If this is the first occasion of processing for this site,  run 
 
 ```bash
-calculate_local_origin.py <site> <Parquet file>
+calculate_local_origin <site> <Parquet file>
 ```
 
 ### Displacements and velocities of batch(es)
