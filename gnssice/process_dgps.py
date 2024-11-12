@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+
 """
 Set up session for Leverett GPS track processing.
 
@@ -10,7 +10,7 @@ Created on Thu Feb 16 10:52:10 2012
 import argparse
 from gnssice import gnss
 
-if __name__ == '__main__':
+def cli():
 
     parser = argparse.ArgumentParser('Kinematic GNSS processing with TRACK')
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Convert leica mdb files to daily windowed rinex files, in preparation for
 kinematic processing using track.
@@ -15,7 +14,7 @@ import datetime as dt
 from gnssice import gnss
 rinex = gnss.RinexConvert()
 
-if __name__ == '__main__':
+def cli():
 
     parser = argparse.ArgumentParser('Windowed RINEX file creation')
 

@@ -106,7 +106,7 @@ def calculate_disps(df, years, periods):
     return store
 
 
-if __name__ == '__main__':        
+def cli():   
 
     import seaborn as sns
     sns.set_style('whitegrid')
@@ -148,7 +148,7 @@ if __name__ == '__main__':
     # Individual 24-h velocities are already available, should be OK to interpolate between the data blocks?
     # Velocities calculated here could otherwise differ slightly as they are not being computed from the full-temporal resolution gauss-smoothed xyz.
 
-disps
+    disps
 
 
 

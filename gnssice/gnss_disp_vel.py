@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 SUMMARY
 Process TRACK-corrected GNSS data into displacement and velocity time series:

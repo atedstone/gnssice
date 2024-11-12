@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 Concatenative daily windowed GEOD files together from a given period into 
 a single Parquet/CSV/TSV file.
@@ -93,8 +92,7 @@ def concatenate_daily_geod(
 
 
 
-
-if __name__ == '__main__':
+def cli():
 
     p = argparse.ArgumentParser('Concatenate daily TRACK GEOD files. Run in the folder containing the files.')
 

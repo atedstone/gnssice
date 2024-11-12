@@ -1,0 +1,13 @@
+[build-system]
+# Minimum requirements for the build system to execute.
+requires = [
+    "setuptools>=64",
+    "setuptools_scm[toml]>=8",
+    "wheel",
+]
+build-backend = "setuptools.build_meta"
+
+# To write version to file
+[tool.setuptools_scm]
+version_file = "gnssice/_version.py"
+fallback_version = "0.0.1"

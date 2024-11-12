@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """ 
 Download and organise IGS IONEX files. 
 
@@ -86,7 +85,7 @@ def overlap(
             subprocess.check_output(cmd, shell=True)
 
 
-if __name__ == '__main__':
+def cli():
 
     p = argparse.ArgumentParser('Download and organise IGS IONEX files in current working directory.')
 
