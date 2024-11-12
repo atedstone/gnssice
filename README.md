@@ -104,8 +104,6 @@ However, if a different base station needs to be used for certain periods, there
 
 ## Installation
 
-More about TEQC: http://facility.unavco.org/software/teqc/
-
 More about GLOBK/Gamit: http://chandler.mit.edu/~simon/gtgk/script_help.htm
 
 More about TRACK: http://geoweb.mit.edu/~tah/track_example/
@@ -117,6 +115,11 @@ You should check that the Gamit tables are sufficiently up to date for your capt
 Create a symlink to gamit, e.g. as follows:
 	
 	ln -s /usr/geos/gamit_globk/10.4 ~/gg 
+
+The workflow also requires codes to convert raw receiver data files to RINEX, which should be installed to your `bin`:
+
+- For older receivers (e.g. Leica 1200), we still rely on TEQC, even though this is discontinued since 2019. Download an executable suitable for your system from http://facility.unavco.org/software/teqc/.
+- For newer receivers (e.g. ublox), RTKLIB (https://www.rtklib.com/) is often suitable.  Download the latest source (https://github.com/tomojitakasu/RTKLIB) and then build the `convbin` utility (this package does not use any other RTKLIB utilities). For build instructions see Section 4 of the RTKLIB manual.
 
 Set up a conda environment with the pre-requisites, e.g.
 
