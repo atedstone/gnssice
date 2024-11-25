@@ -4,7 +4,6 @@ Calculate and save origin of local cartesian grid.
 """
 
 import pandas as pd
-from dask import dataframe as dd
 import argparse
 import math
 import numpy as np
