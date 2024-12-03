@@ -25,7 +25,7 @@ def download(
     Download IONEX files to current working directory.
     """
     
-    yr = str(args.year % 1000).zfill(2)
+    yr = str(year % 1000).zfill(2)
 
     for doy in range(doy_start, doy_finish):
         d = str(doy).zfill(3)
