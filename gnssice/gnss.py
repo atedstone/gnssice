@@ -164,7 +164,7 @@ def confirm(prompt=None, resp=False):
 @click.option('--rename', default=False, help='if True, then year signifier will be removed from filename.')
 def get_orbits(self, year, start_doy, end_doy, 
     overlap=False,
-    clearup=True,
+    noclearup=False,
     rename=False):
     """Download daily IGS sp3 orbit files and overlap them.
     
@@ -237,7 +237,7 @@ def get_orbits(self, year, start_doy, end_doy,
                 shellcmd(cmd)
         doy = doy + 1
     
-    if clearup == True:
+    if not noclearup:
         print("Clearing up...")
         shellcmd("rm -r sp3_dl")
         shellcmd("mv cat_sp3/* .")
