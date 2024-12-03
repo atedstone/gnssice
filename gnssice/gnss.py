@@ -37,8 +37,9 @@ import logging
 import os
 import pandas as pd
 import re
+import click
 
-INSTITUTION = 'University of Fribourg'
+INSTITUTION = 'University of Lausanne'
 OBSERVER = 'Andrew Tedstone'
 
 def shellcmd(cmd,timeout_seconds=False,retry_n=2):
@@ -152,6 +153,101 @@ def confirm(prompt=None, resp=False):
             return True
         if ans.lower() == 'n':
             return False    
+
+
+@click.command()
+@click.argument('year')
+@click.argument('start_doy')
+@click.argument('end_doy')
+@click.option('--overlap', default=False)
+@click.option('--noclearup', default=False)
+@click.option('--rename', default=False, help='if True, then year signifier will be removed from filename.')
+def get_orbits(self, year, start_doy, end_doy, 
+    overlap=False,
+    clearup=True,
+    rename=False):
+    """Download daily IGS sp3 orbit files and overlap them.
+    
+    Each resulting overlapped file contains the previous day, the current
+    day, and the next day.
+    
+    Do not try to download orbits spanning two years - only run on a 
+    per-yearly basis.
+    
+    If clearup=True, the un-overlapped files will be deleted afterwards and
+    overlapped files moved into the main directory. Otherwise, they will
+    remain in cat_sp3/.
+
+    If rename=True, files will have the year signifier removed from their
+    filename.
+
+    """
+    start_doy = int(start_doy)
+    end_doy = int(end_doy)
+    n_days = end_doy - start_doy + 1 
+    if n_days < 0:
+        print("It looks like you've entered the number of days to download, not the end day. You need to specify the end day. Exiting...")
+        return
+    shellcmd("mkdir sp3_dl")
+    cmd = "cd sp3_dl ; sh_get_orbits -orbit igsf -yr " + str(year) + " -doy " + \
+        str(start_doy) + " -ndays " + str(n_days) + " -nofit"
+    print(cmd)
+    status = shellcmd(cmd)
+    print(status['stdout'])
+    print(status['stderr'])
+    
+    status = shellcmd("ls sp3_dl/*.sp3")
+    
+
+    files = status['stdout'].split("\n")
+    shellcmd("mkdir cat_sp3")   
+
+    if overlap:
+        ol_suffix = '_ol'
+    else:
+        ol_suffix = ''
+    
+    doy = start_doy
+    for prev,item,nex in neighborhood(files):
+        if prev == None:
+            prev = ""
+        if nex == None:
+            nex = ""
+        if item == "":
+            break
+        if rename:
+            newfn = "cat_sp3/igs" + str(doy).zfill(3) + ol_suffix + ".sp3"
+        else:
+            yr = int(year) % 1000
+            newfn = "cat_sp3/igs" + str(yr) + str(doy).zfill(3) + ol_suffix + ".sp3"
+        try:
+            fn = open(newfn)
+            fn.close()
+            print("File for doy " + str(doy) + "already exists, skipping")
+            continue
+        except IOError:
+            if overlap:
+                cmd = "cat " + prev + " " + item + " " + nex + \
+                " > " + newfn
+                print(cmd)
+                shellcmd(cmd)  
+            else:
+                cmd = "mv {old} {new}".format(old=item, new=newfn)
+                print(cmd)
+                shellcmd(cmd)
+        doy = doy + 1
+    
+    if clearup == True:
+        print("Clearing up...")
+        shellcmd("rm -r sp3_dl")
+        shellcmd("mv cat_sp3/* .")
+        shellcmd("rm -r cat_sp3")
+
+
+        shellcmd("mv sp3_dl/* .")
+        shellcmd("rm -r sp3_dl")
+    
+    print("Done.")
 
 
 def read_track_geod_file(
@@ -473,113 +569,7 @@ class Kinematic:
         self.MW_WL = None
         self.LG = None
         self.apriori = None
-        self.config_subfolder = "gps_config/"
-    
-
-    def get_orbits(self, year, start_doy, end_doy, 
-        overlap=False,
-        clearup=True,
-        rename=False):
-        """Download daily IGS sp3 orbit files and overlap them.
-        
-        Each resulting overlapped file contains the previous day, the current
-        day, and the next day.
-        
-        Do not try to download orbits spanning two years - only run on a 
-        per-yearly basis.
-        
-        If clearup=True, the un-overlapped files will be deleted afterwards and
-        overlapped files moved into the main directory. Otherwise, they will
-        remain in cat_sp3/.
-
-        If rename=True, files will have the year signifier removed from their
-        filename.
-
-        """
-        start_doy = int(start_doy)
-        end_doy = int(end_doy)
-        n_days = end_doy - start_doy + 1 
-        if n_days < 0:
-            print("It looks like you've entered the number of days to download, not the end day. You need to specify the end day. Exiting...")
-            return
-        shellcmd("mkdir sp3_dl")
-        cmd = "cd sp3_dl ; sh_get_orbits -orbit igsf -yr " + str(year) + " -doy " + \
-            str(start_doy) + " -ndays " + str(n_days) + " -nofit"
-        print(cmd)
-        status = shellcmd(cmd)
-        print(status['stdout'])
-        print(status['stderr'])
-        
-        status = shellcmd("ls sp3_dl/*.sp3")
-        
-    
-        files = status['stdout'].split("\n")
-        shellcmd("mkdir cat_sp3")   
-
-        if overlap:
-            ol_suffix = '_ol'
-        else:
-            ol_suffix = ''
-        
-        doy = start_doy
-        for prev,item,nex in neighborhood(files):
-            if prev == None:
-                prev = ""
-            if nex == None:
-                nex = ""
-            if item == "":
-                break
-            if rename:
-                newfn = "cat_sp3/igs" + str(doy).zfill(3) + ol_suffix + ".sp3"
-            else:
-                yr = int(year) % 1000
-                newfn = "cat_sp3/igs" + str(yr) + str(doy).zfill(3) + ol_suffix + ".sp3"
-            try:
-                fn = open(newfn)
-                fn.close()
-                print("File for doy " + str(doy) + "already exists, skipping")
-                continue
-            except IOError:
-                if overlap:
-                    cmd = "cat " + prev + " " + item + " " + nex + \
-                    " > " + newfn
-                    print(cmd)
-                    shellcmd(cmd)  
-                else:
-                    cmd = "mv {old} {new}".format(old=item, new=newfn)
-                    print(cmd)
-                    shellcmd(cmd)
-            doy = doy + 1
-        
-        if clearup == True:
-            print("Clearing up...")
-            shellcmd("rm -r sp3_dl")
-            shellcmd("mv cat_sp3/* .")
-            shellcmd("rm -r cat_sp3")
-    
-
-            shellcmd("mv sp3_dl/* .")
-            shellcmd("rm -r sp3_dl")
-        
-        print("Done.")
-             
-    
-    def crx2rnx(suffix):
-        """Basic wrapper to CRX2RNX, which decompresses *.*d rinex files.
-
-        CRX2RNX must be on system path.
-        
-        Inputs:
-            suffix = file suffix, e.g. 11d for 2011 compressed files.
-        Outputs:
-            none.
-        """
-        files = shellcmd("ls *." + suffix)
-        files = st.split(files['stout'],"\n")
-        for fn in files:
-            print(fn)
-            shellcmd("CRX2RNX " + fn)
-        print("Done")
+        self.config_subfolder = ""
          
 
     def track(self, base, rover, 
@@ -803,10 +793,10 @@ class Kinematic:
                 # Save a scatter plot, also display subject to above.
                 plot_fname = "track.NEU." + rover + ".LC"
                 save_plot_to = '{r}_{b}_{y}_{d}_{ftype}.png'.format(ftype='NEU', **save_opts)
-                self.view_track_output(base, rover, doy, 
-                                       fname=plot_fname,
-                                       display=__show_plot,
-                                       save_to=save_plot_to)
+                view_track_output(base, rover, doy, 
+                                fname=plot_fname,
+                                display=__show_plot,
+                                save_to=save_plot_to)
                 
                 # Do manual quality check if automatic not on or if automatic test failed.
                 if use_auto_qa == False or (use_auto_qa == True and keep == False):
@@ -854,96 +844,63 @@ class Kinematic:
         print("Batch finished.")
     
     
-    def view_track_output(self, base, rover, doy, gtype='NEU', fname=None, 
-                          display=True, save_to=None):
-        """Display a scatter plot of reconciled daily track data.
-        
-        Inputs:
-            base: 4-character identifier of base (static) receiver
-            rover: 4-character identifier of moving receiver
-            doy: day of year to examine
-            gtype: georeferencing type. Optional. Currently only NEU supported
-            fname: filename of file. Optional. If not used, the filename will
-                be deduced from the other input parameters.
-            save_to: None (don't save), or path/filename to save plot to, including extension.
-        
-        Outputs:
-            None.
-        
-        """
-        if fname == None:        
-            fname = rover + '_' + base + '_' + str(doy) + gtype + '.dat'
-        
-        if gtype=='NEU':    
-            data = read_track_neu_file(fname)
-        else:
-            print('Files georeferenced in a format other than NEU are currently unsupported.')
-            return
-        
-        plt.figure()
-        
-        plt.plot(data['dEast'], data['dNorth'],
-                    c='tab:blue', marker='.', linestyle='none',
-                    label='Positions', alpha=0.2)
-        only_fixed = data[data['NotF'] == 0]
-        plt.plot(only_fixed['dEast'], only_fixed['dNorth'],
-                    c='tab:orange', marker='.', linestyle='none',
-                    label='Position (unfixed epoches removed)', alpha=0.2)
-        plt.plot(data['dEast'].iloc[0],data['dNorth'].iloc[0],
-                 c='tab:red', marker='+', markersize=10,
-                 label='Start')
-        plt.plot(data['dEast'].iloc[-1],data['dNorth'].iloc[-1],
-                 c='tab:red', marker='+', markersize=10,
-                 label='End')
-        
-        plt.ylabel('North (m)')
-        plt.xlabel('East (m)')
-        plt.grid()
-        plt.title('%s %s %s' %(base, rover, doy))
-        #plt.axes().set_aspect('equal','datalim')    
-        plt.legend(numpoints=1, scatterpoints=1, markerscale=0.6, loc='best')    
-        if save_to is not None:
-            plt.savefig(save_to, orientation='landscape', dpi=200)  
-        if display == True:
-           plt.show()
-        else:
-            plt.close()
-        return             
-
-
-# ------------------------------------------------------------------------------
-# Command line access functionality
-# This should probably be re-written to use optparse...  
-if __name__ == "__main__":
+@click.command()
+@click.argument('base')
+@click.argument('rover')
+@click.argument('doy')
+@click.option('--gtype', default='NEU', help='currently only NEU supported')
+def view_track_output(self, base, rover, doy, gtype='NEU', fname=None, 
+                      display=True, save_to=None):
+    """Display a scatter plot of reconciled daily track data.
     
-    import sys
-    k = Kinematic()
-    if len(sys.argv) == 1:
-        print ("""
-        This is the command line interface to gps. Examine the module
-        code (gnss.py) for full information. 
-        
-        Usage:
-         view_track_output [base] [rover] [doy] [file_type(default=NEU)]
-         get_orbits [year] [start doy] [end doy]
-         crx2rnx [suffix, e.g. 11d] 
-         
-        """    )     
-    elif sys.argv[1] == 'view_track_output':
-        if len(sys.argv) == 6:
-            k.view_track_output(sys.argv[2],sys.argv[3],sys.argv[4],sys.argv[5])
-        else:
-            k.view_track_output(sys.argv[2],sys.argv[3],sys.argv[4])                
-    elif sys.argv[1] == 'get_orbits':
-        if len(sys.argv) == 6:
-            overlap = True
-        else:
-            overlap = False
-        print('Overlap mode: %s' %overlap)
-        k.get_orbits(sys.argv[2],sys.argv[3],sys.argv[4], overlap)
-    elif sys.argv[1] == 'crx2rnx':
-        k.crx2rnx(sys.argv[2].strip()) 
+    Inputs:
+        base: 4-character identifier of base (static) receiver
+        rover: 4-character identifier of moving receiver
+        doy: day of year to examine
+        gtype: georeferencing type. Optional. Currently only NEU supported
+        fname: filename of file. Optional. If not used, the filename will
+            be deduced from the other input parameters.
+        save_to: None (don't save), or path/filename to save plot to, including extension.
+    
+    Outputs:
+        None.
+    
+    """
+    if fname == None:        
+        fname = rover + '_' + base + '_' + str(doy) + gtype + '.dat'
+    
+    if gtype=='NEU':    
+        data = read_track_neu_file(fname)
     else:
-        print ("Unknown command. Maybe the function hasn't been implemented for command line access?")
-                
-                
+        print('Files georeferenced in a format other than NEU are currently unsupported.')
+        return
+    
+    plt.figure()
+    
+    plt.plot(data['dEast'], data['dNorth'],
+                c='tab:blue', marker='.', linestyle='none',
+                label='Positions', alpha=0.2)
+    only_fixed = data[data['NotF'] == 0]
+    plt.plot(only_fixed['dEast'], only_fixed['dNorth'],
+                c='tab:orange', marker='.', linestyle='none',
+                label='Position (unfixed epoches removed)', alpha=0.2)
+    plt.plot(data['dEast'].iloc[0],data['dNorth'].iloc[0],
+             c='tab:red', marker='+', markersize=10,
+             label='Start')
+    plt.plot(data['dEast'].iloc[-1],data['dNorth'].iloc[-1],
+             c='tab:red', marker='+', markersize=10,
+             label='End')
+    
+    plt.ylabel('North (m)')
+    plt.xlabel('East (m)')
+    plt.grid()
+    plt.title('%s %s %s' %(base, rover, doy))
+    #plt.axes().set_aspect('equal','datalim')    
+    plt.legend(numpoints=1, scatterpoints=1, markerscale=0.6, loc='best')    
+    if save_to is not None:
+        plt.savefig(save_to, orientation='landscape', dpi=200)  
+    if display == True:
+       plt.show()
+    else:
+        plt.close()
+    return             

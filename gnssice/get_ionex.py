@@ -12,6 +12,7 @@ import argparse
 IONEX_PROVIDER = 'PL' # CDDIS, PL
 IONEX_SOURCE = 'ftp://igs-final.man.olsztyn.pl/pub/gps_data/GPS_IONO/cmpcmb/'
 #PL: 'https://cddis.nasa.gov/archive/gnss/products/ionex/'
+# see https://cddis.nasa.gov/Data_and_Derived_Products/GNSS/atmospheric_products.html
 #######
 
 def download(
