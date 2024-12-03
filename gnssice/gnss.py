@@ -42,7 +42,7 @@ import click
 INSTITUTION = 'University of Lausanne'
 OBSERVER = 'Andrew Tedstone'
 
-def shellcmd(cmd,timeout_seconds=False,retry_n=2):
+def shellcmd(cmd, timeout_seconds=False, retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
     
     Parameters
@@ -162,7 +162,7 @@ def confirm(prompt=None, resp=False):
 @click.option('--overlap', default=False)
 @click.option('--noclearup', default=False)
 @click.option('--rename', default=False, help='if True, then year signifier will be removed from filename.')
-def get_orbits(self, year, start_doy, end_doy, 
+def get_orbits(year, start_doy, end_doy, 
     overlap=False,
     noclearup=False,
     rename=False):
@@ -849,7 +849,7 @@ class Kinematic:
 @click.argument('rover')
 @click.argument('doy')
 @click.option('--gtype', default='NEU', help='currently only NEU supported')
-def view_track_output(self, base, rover, doy, gtype='NEU', fname=None, 
+def view_track_output(base, rover, doy, gtype='NEU', fname=None, 
                       display=True, save_to=None):
     """Display a scatter plot of reconciled daily track data.
     
