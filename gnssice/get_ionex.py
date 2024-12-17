@@ -63,7 +63,7 @@ def download(
 
 def unzip() -> None:
     """ Unzip IONEX files in current working directory. """
-    subprocess.check_output('gunzip *.Z')
+    subprocess.check_output('gunzip *.Z', shell=True)
 
 
 def overlap(
