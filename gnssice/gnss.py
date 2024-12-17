@@ -844,11 +844,11 @@ class Kinematic:
         print("Batch finished.")
     
     
-@click.command()
-@click.argument('base')
-@click.argument('rover')
-@click.argument('doy')
-@click.option('--gtype', default='NEU', help='currently only NEU supported')
+# @click.command()
+# @click.argument('base')
+# @click.argument('rover')
+# @click.argument('doy')
+# @click.option('--gtype', default='NEU', help='currently only NEU supported')
 def view_track_output(base, rover, doy, gtype='NEU', fname=None, 
                       display=True, save_to=None):
     """Display a scatter plot of reconciled daily track data.
