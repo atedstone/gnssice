@@ -47,7 +47,7 @@ def concatenate_daily_geod(
     all_data = []
 
     print ("Daily key: E=Excluded, N=No file, C=Concatenated.")
-    for doy in range(start_doy, finish_it+1):
+    for doy in range(start_doy, finish_doy+1):
         if doy in exclude_doys:
             print ('E'+ str(doy) + ', ',)
             continue
