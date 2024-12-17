@@ -2,10 +2,38 @@
 
 This package provides functionality to kinematically process differential GNSS/GPS observations collected on moving ice (using TRACK), and to post-process them to yield displacements and velocities.
 
-## Credits
+## octopus.unil.ch quick-start
 
-* Andrew Tedstone 2012-2014 and 2022-24.
-* Developed from previous processing routines written by Matt King, Andrew Sole, Ian Bartholomew.
+Use the first terminal for processing. 
+
+Terminal 1:
+
+```bash
+# Connect to login node
+ssh octo
+# Connect to compute node
+ssh [node]
+# Set up environment
+source gnss.sh
+```
+
+In a second terminal, set up port forwarding to the lightweight HTTP server so that we can look at PNG files of outputs when needed.
+
+Terminal 2:
+
+```bash
+ssh octo -N -L localhost:8080:[node]:8080
+firefox localhost:8080
+```
+
+
+Assumes the following pre-requisites:
+
+* Local machine is Unix or Mac, octopus is configured in SSH config with X11 forwarding enabled
+* gnssice installed on octopus
+* bash script `gnss.sh` is on octopus. 
+
+
 
 ## Overview of workflow
 
@@ -143,7 +171,6 @@ Place the TRACK cmd file(s) needed for your processing in this workspace folder.
 Files from Kellyville were sometimes in the compressed rinex format.
 If they are, you will also need RNXCMP and CRX2RNX, available at http://terras.gsi.go.jp/ja/crx2rnx.html.
 You need to install this to your home directory.
-At the time of writing, fleet requires the Linux 32 bit version.
  1. Download the tar.gz file.
  2. uncompress the download: `tar -zxvf <filename>`
  3. Put the files on your unix path. Either:
@@ -219,7 +246,7 @@ sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely
 If files have `*.<yy>o` suffix you're all set, otherwise, if they are zipped, unzip the compressed rinex files using 7zip or whatever. Then convert to normal rinex i.e. from `*.10d` to `*.10o`, using CRX2RNX.
 
 ```bash	
-for f in ls*; do
+for f in *; do
 crx2rnx $f;
 done
 ```	    
@@ -512,4 +539,8 @@ Email exchange between AJT and MAK, December 2013-January 2014.
 
 
 
+## Credits
+
+* Andrew Tedstone 2012-2014 and 2022-24.
+* Developed from previous processing routines written by Matt King, Andrew Sole, Ian Bartholomew.
 
