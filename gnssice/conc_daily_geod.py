@@ -23,7 +23,7 @@ def concatenate_daily_geod(
     rover : str, 
     year : int, 
     start_doy : int, 
-    finish_doy : int, 
+    finish_doy : int, # inclusive
     outformat : str, 
     exclude_doys : list
     ) -> None:
@@ -45,10 +45,8 @@ def concatenate_daily_geod(
         exclude_doys = []
 
     all_data = []        
-    if start_doy == finish_doy:
-        finish_it = start_doy + 1
-    else:
-        finish_it = finish_doy
+    finish_it = start_doy + 1
+
     print ("Daily key: E=Excluded, N=No file, C=Concatenated.")
     for doy in range(start_doy, finish_it):
         if doy in exclude_doys:
@@ -99,8 +97,8 @@ def cli():
     p.add_argument('base', type=str)
     p.add_argument('rover', type=str)
     p.add_argument('year', type=int)
-    p.add_argument('start_doy', type=int)
-    p.add_argument('finish_doy', type=int)
+    p.add_argument('start_doy', type=int, help='start DOY (inclusive)')
+    p.add_argument('finish_doy', type=int, help='finish DOY (inclusive)')
 
     p.add_argument('-outformat', choices=['parquet', 'csv', 'tsv'], default='parquet')
     p.add_argument('-exclude_doys', nargs='*', type=int)
