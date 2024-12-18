@@ -98,36 +98,82 @@ print('')
 
 # +
 # If running as a Notebook, provide your arguments to the ArgumentParser here.
-input_args = ['lev5', '-f', 
-              'lev5_rusb_2021_129_242_GEOD.parquet',
-              'lev5_rusb_2022_137_138_GEOD.parquet', 
-              'lev5_rusb_2022_151_271_GEOD.parquet', 
-              'lev5_klsq_2022_271_323_GEOD.parquet',
-              'lev5_rusb_2023_128_129_GEOD.parquet']
-# And also provide the path where all your data are stored. 
-# The Notebook will use this to set the working directory.
-path_to_data = '/scratch/gnss/lev5/'
+# input_args = ['camp', '-stake', '-f', 
+#               'camp_2021_126_2023_126_geod.parquet',
+#               'camp_klsq_2024_118_118_GEOD.parquet']
+# # And also provide the path where all your data are stored. 
+# # The Notebook will use this to set the working directory.
+# path_to_data = '/scratch/gnss/camp/'
 
-# If running as a Notebook, provide your arguments to the ArgumentParser here.
-input_args = ['lev6', '-f', 
-              '*.parquet']
-# And also provide the path where all your data are stored. 
-# The Notebook will use this to set the working directory.
-path_to_data = '/scratch/gnss/lev6/'
 
 # If running as a Notebook, provide your arguments to the ArgumentParser here.
 input_args = ['f003', '-f', 
-              '*.parquet']
+              'f003_2021_127_2023_124_geod.parquet',
+            '/Users/atedston/scratch/gnss_2023_2024/f003/f003_1230_geod.parquet'
+            
+             ]
 # And also provide the path where all your data are stored. 
 # The Notebook will use this to set the working directory.
 path_to_data = '/scratch/gnss/f003/'
 
-# If running as a Notebook, provide your arguments to the ArgumentParser here.
-input_args = ['kanu', '-f', 
-              '*.parquet']
-# And also provide the path where all your data are stored. 
-# The Notebook will use this to set the working directory.
-path_to_data = '/scratch/gnss/kanu/'
+
+# # If running as a Notebook, provide your arguments to the ArgumentParser here.
+# input_args = ['f004', '-stake', '-f', 
+#               'f004_2021_122_2023_123_geod.parquet',
+#               'f004_rusb_2024_124_124_GEOD.parquet']
+# # And also provide the path where all your data are stored. 
+# # The Notebook will use this to set the working directory.
+# path_to_data = '/scratch/gnss/f004/'
+
+
+# # If running as a Notebook, provide your arguments to the ArgumentParser here.
+# input_args = ['fs05', '-f', 
+#               'fs05_rusb_2021_125_145_GEOD.parquet',
+#               'fs05_rusb_2021_198_265_GEOD.parquet',
+#               'fs05_klsq_2021_266_366_GEOD.parquet',
+#               'fs05_klsq_2022_1_60_GEOD.parquet',
+#               'fs05_rusb_2024_122_122_GEOD.parquet'
+#              ]
+# # And also provide the path where all your data are stored. 
+# # The Notebook will use this to set the working directory.
+# path_to_data = '/scratch/gnss/fs05'
+
+
+# # If running as a Notebook, provide your arguments to the ArgumentParser here.
+# input_args = ['kanu', '-f', 
+#               'kanu_2021_122_2023_119_geod.parquet',
+#               'kanu_rusb_2023_126_274_GEOD.parquet',
+#               'kanu_klsq_2023_278_324_GEOD.parquet',
+#               'kanu_rusb_2024_121_121_GEOD.parquet'
+#              ]
+# # And also provide the path where all your data are stored. 
+# # The Notebook will use this to set the working directory.
+# path_to_data = '/scratch/gnss/kanu/'
+
+
+# # If running as a Notebook, provide your arguments to the ArgumentParser here.
+# input_args = ['lev5', '-f', 
+#               'lev5_rusb_2021_129_242_GEOD.parquet',
+#               'lev5_rusb_2022_137_138_GEOD.parquet', 
+#               'lev5_rusb_2022_151_271_GEOD.parquet', 
+#               'lev5_klsq_2022_271_323_GEOD.parquet',
+#               'lev5_rusb_2023_128_129_GEOD.parquet']
+# # And also provide the path where all your data are stored. 
+# # The Notebook will use this to set the working directory.
+# path_to_data = '/scratch/gnss/lev5/'
+
+
+# # If running as a Notebook, provide your arguments to the ArgumentParser here.
+# input_args = ['lev6', '-f', 
+#               'lev6_2021_127_2023_123_geod.parquet',
+#               'lev6_rusb_2023_122_273_GEOD.parquet',
+#               'lev6_klsq_2023_274_364_GEOD.parquet',
+#               'lev6_klsq_2024_1_121_GEOD.parquet'
+#              ]
+# # And also provide the path where all your data are stored. 
+# # The Notebook will use this to set the working directory.
+# path_to_data = '/scratch/gnss/lev6/'
+
 
 
 # -
@@ -181,18 +227,22 @@ if len(args.geod_file) == 1:
 else:
     files = args.geod_file
 for file in files:
+    print(file)
     geod = pd.read_parquet(file.strip())
     if 'YY' in geod.columns:
         geod.index = pp.create_time_index(geod)
         geod = geod.drop(labels=['YY', 'DOY', 'Seconds'], axis='columns')
-        geod_store.append(geod)
-        geod = pd.concat(geod_store, axis=0)
     else:
         print('The parquet file provided appears to be a multi-batch file, continuing on this basis...')
-        
+    geod_store.append(geod)
+
+geod = pd.concat(geod_store, axis=0)
 geod = geod.sort_index()
 geod = geod[~geod.index.duplicated()]
 # -
+
+plt.figure()
+plt.plot(geod.index, geod.Latitude, 'o')
 
 # Define output filenames
 output_to_pre = '{site}_{ys}_{ds}_{ye}_{de}'.format(
@@ -606,5 +656,6 @@ while True:
     procdate = date_next
 outp = pd.DataFrame(store)
 
+360-312.759553
 
 

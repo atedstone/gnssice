@@ -55,7 +55,7 @@ def backdate(df, start='2021-05-01', freq='1H', sample=1000):
     else:
         return df
     
-def fwddate(df, end='2023-05-01', freq='1H', sample=1000):
+def fwddate(df, end='2024-05-01', freq='1H', sample=1000):
     # To estimate 1 May to 1 May displacement, for some sites we need to extend
     # the time range a bit.
     if df.index[-1] < pd.Timestamp(end):
@@ -105,50 +105,54 @@ def calculate_disps(df, years, periods):
         store[year] = store_year
     return store
 
+# +
 
-def cli():   
 
-    import seaborn as sns
-    sns.set_style('whitegrid')
+import seaborn as sns
+sns.set_style('whitegrid')
 
-    # Eventually could wrap this logic up further, so that the script can process
-    # every site then export to a spreadsheet.
+# Eventually could wrap this logic up further, so that the script can process
+# every site then export to a spreadsheet.
 
-    #files = ['lev5_rusb_2021_129_242_GEOD.h5', 'lev5_rusb_2022_137_138_GEOD.h5']
-    files = ['lev6_rusb_2021_126_265_GEOD.h5', 'lev6_rusb_2022_134_135_GEOD.h5']
-    #files = ['f003_rusb_2021_126_214_GEOD.h5', 'f003_rusb_2022_131_131_GEOD.h5']
-    #files = ['kanu_2021_122_2022_135_geod.h5']
-    #files = ['fs05_2021_126_2022_129_geod.h5']
-    files = ['camp_2020_206_2023_126_disp.h5']
-    files = ['/scratch/gnss/lev5/lev5_2021_130_2023_129_disp.h5']
-    files = ['/scratch/gnss/lev6/lev6_2021_127_2023_123_disp.h5']
-    files = ['/scratch/gnss/camp/camp_2021_126_2023_126_disp.h5']
-    files = ['/scratch/gnss/f004/f004_2021_122_2023_123_disp.h5']
-    files = ['/scratch/gnss/f003/f003_2021_127_2023_124_disp.h5']
-    files = ['/scratch/gnss/kanu/kanu_2021_122_2023_119_disp.h5']
+#files = ['lev5_rusb_2021_129_242_GEOD.h5', 'lev5_rusb_2022_137_138_GEOD.h5']
+#files = ['lev6_rusb_2021_126_265_GEOD.h5', 'lev6_rusb_2022_134_135_GEOD.h5']
+#files = ['f003_rusb_2021_126_214_GEOD.h5', 'f003_rusb_2022_131_131_GEOD.h5']
+#files = ['kanu_2021_122_2022_135_geod.h5']
+#files = ['/scratch/gnss/fs05/fs05_2021_126_2024_123_disp.h5']
+#files = ['camp_2020_206_2023_126_disp.h5']
+#files = ['/scratch/gnss/lev5/lev5_2021_130_2023_129_disp.h5']
+#files = ['/scratch/gnss/lev6/lev6_2021_127_2024_122_disp.h5']
+#files = ['/scratch/gnss/camp/camp_2021_126_2024_119_disp.h5']
+#files = ['/scratch/gnss/f004/f004_2021_122_2024_125_disp.h5']
+files = ['/scratch/gnss/f003/f003_2021_127_2024_124_disp.h5']
+#files = ['/scratch/gnss/kanu/kanu_2021_122_2024_122_disp.h5']
 
-    periods = {
-        'Annual':[(5,1), (4,30)],
-        'Summer':[(5,1), (8,30)],
-        'Winter':[(9,1), (4,30)],
-        'ES':[(5,1), (6,30)],
-        'LS':[(7,1), (8,30)]
-        }
+periods = {
+    'Annual':[(5,1), (4,30)],
+    'Summer':[(5,1), (8,30)],
+    'Winter':[(9,1), (4,30)],
+    'ES':[(5,1), (6,30)],
+    'LS':[(7,1), (8,30)]
+    }
 
-    years = [2021, 2022]
+years = [2021, 2022, 2023]
 
-    xyz = load_xyz(files)
-    xyzi = make_contiguous(xyz)
-    xyzi = backdate(xyzi)
-    xyzi = fwddate(xyzi)
+xyz = load_xyz(files)
+xyzi = make_contiguous(xyz)
+xyzi = backdate(xyzi)
+xyzi = fwddate(xyzi)
 
-    disps = calculate_disps(xyzi, years, periods)
+disps = calculate_disps(xyzi, years, periods)
 
-    # To do: calculate average velocities for each period. 
-    # Individual 24-h velocities are already available, should be OK to interpolate between the data blocks?
-    # Velocities calculated here could otherwise differ slightly as they are not being computed from the full-temporal resolution gauss-smoothed xyz.
+# To do: calculate average velocities for each period. 
+# Individual 24-h velocities are already available, should be OK to interpolate between the data blocks?
+# Velocities calculated here could otherwise differ slightly as they are not being computed from the full-temporal resolution gauss-smoothed xyz.
 
-    disps
+disps
+# -
+
+
+
 
 
 
