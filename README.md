@@ -479,7 +479,7 @@ calculate_local_origin <site> <Parquet file>
 
 ### Displacements and velocities of batch(es)
 
-Use `gnss_disp_vel.py`.
+Use `gnss_disp_vel.py`. This can be run on the command line or as a Notebook.
 
 If older data for this site have already been post-processed then a file `rotation_<site>.dat` will exist, defining the coefficients to rotate the coordinates into along/across-TRACK displacement. Place this file in the working directory.
 
