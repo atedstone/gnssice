@@ -34,10 +34,13 @@ def create_time_index(
     Requires TRACK-originated dataframe with YY, DOY and Seconds columns.
     Can be used with parquet files.
 
-    Could move this to along-side/within read_track_file?
+    We need to subtract 1 from the supplied DOY:
+    pd.to_datetime(2021)               -> datetime(2021, 1, 1)
+    if DOY=1, then without subtraction -> datetime(2021, 1, 2)
+    
     """
     ix = pd.to_datetime(data['YY'].astype(str)) + \
-            pd.to_timedelta(data['DOY'].round().astype(int), unit='days') + \
+            pd.to_timedelta(data['DOY'].round().astype(int) - 1, unit='days') + \
             pd.to_timedelta(data['Seconds'].round().astype(int), unit='sec')
     return ix
 

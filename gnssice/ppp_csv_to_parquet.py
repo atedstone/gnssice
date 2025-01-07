@@ -39,11 +39,17 @@ drop = ['rcvr_clk_ns', 'decimal_hour']
 
 # %%
 timestamps = pd.to_datetime(f.year.astype(str)) + \
-            pd.to_timedelta(f.day_of_year.astype(int), unit='days') + \
+            (pd.to_timedelta(f.day_of_year.astype(int), unit='days') - pd.Timedelta(days=1)) + \
             pd.to_timedelta(f.decimal_hour, unit='h')
 
 # %%
-fdoy = timestamps.dt.day_of_year + ((timestamps - timestamps.dt.floor('D')) / pd.Timedelta(24, 'h'))
+f
+
+# %%
+timestamps
+
+# %%
+fdoy = (timestamps.dt.day_of_year) + ((timestamps - timestamps.dt.floor('D')) / pd.Timedelta(24, 'h'))
 
 # %%
 daily_seconds_elapsed = (timestamps - pd.to_datetime(timestamps.dt.date)).dt.total_seconds()
