@@ -73,8 +73,8 @@ p = argparse.ArgumentParser('Kinematic GPS: filter positions, calculate \
     CSV file of longer-term velocities, plots of data.')
 p.add_argument('site', type=str, help='Name/identifier of site')
 
-p.add_argument('-f', dest='geod_file', type=str, nargs='+', 
-    help='Path to GEOD parquet file(s) (output by conc_daily_geod.py)')
+# p.add_argument('-f', dest='geod_file', type=str, nargs='+', 
+#     help='Path to GEOD parquet file(s) (output by conc_daily_geod.py)')
 
 p.add_argument('-optspath', type=str, default='', help='Location of options files if \
     not current directory')
@@ -89,94 +89,24 @@ p.add_argument('-sample_freq', type=str, default='10s')
 p.add_argument('-noconc', action='store_true', help='By default, if multiple \
     parquet files are specified then this script saves a new Parquet file \
     containing them all. Give this flag to prevent the new Parquet file being created.')
+p.add_argument('-v6h', action='store_true', help='If set then also compute sliding 6h velocities for the site.')
+
 p.add_argument('-nbplot', type=str, default='widget', help='If running as a Notebook, \
                defines the matplotlib backend used. Supply widget or inline.')
 print('')
+
 # -
 
 # ### Running in a Notebook? Put your parameters in below!
 
-# +
 # If running as a Notebook, provide your arguments to the ArgumentParser here.
 # input_args = ['camp', '-stake', '-f', 
 #               'camp_2021_126_2023_126_geod.parquet',
 #               'camp_klsq_2024_118_118_GEOD.parquet']
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/camp/'
+#input_args = ['f004', '-stake']
+#input_args = ['lev5', '-v6h']
+input_args = ['lev6']
 
-
-# If running as a Notebook, provide your arguments to the ArgumentParser here.
-input_args = ['f003', '-f', 
-              'f003_2021_127_2023_124_geod.parquet',
-            '/Users/atedston/scratch/gnss_2023_2024/f003/f003_1230_geod.parquet'
-            
-             ]
-# And also provide the path where all your data are stored. 
-# The Notebook will use this to set the working directory.
-path_to_data = '/scratch/gnss/f003/'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['f004', '-stake', '-f', 
-#               'f004_2021_122_2023_123_geod.parquet',
-#               'f004_rusb_2024_124_124_GEOD.parquet']
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/f004/'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['fs05', '-f', 
-#               'fs05_rusb_2021_125_145_GEOD.parquet',
-#               'fs05_rusb_2021_198_265_GEOD.parquet',
-#               'fs05_klsq_2021_266_366_GEOD.parquet',
-#               'fs05_klsq_2022_1_60_GEOD.parquet',
-#               'fs05_rusb_2024_122_122_GEOD.parquet'
-#              ]
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/fs05'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['kanu', '-f', 
-#               'kanu_2021_122_2023_119_geod.parquet',
-#               'kanu_rusb_2023_126_274_GEOD.parquet',
-#               'kanu_klsq_2023_278_324_GEOD.parquet',
-#               'kanu_rusb_2024_121_121_GEOD.parquet'
-#              ]
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/kanu/'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['lev5', '-f', 
-#               'lev5_rusb_2021_129_242_GEOD.parquet',
-#               'lev5_rusb_2022_137_138_GEOD.parquet', 
-#               'lev5_rusb_2022_151_271_GEOD.parquet', 
-#               'lev5_klsq_2022_271_323_GEOD.parquet',
-#               'lev5_rusb_2023_128_129_GEOD.parquet']
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/lev5/'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['lev6', '-f', 
-#               'lev6_2021_127_2023_123_geod.parquet',
-#               'lev6_rusb_2023_122_273_GEOD.parquet',
-#               'lev6_klsq_2023_274_364_GEOD.parquet',
-#               'lev6_klsq_2024_1_121_GEOD.parquet'
-#              ]
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/lev6/'
-
-
-
-# -
 
 # ## Identify execution mode
 
@@ -198,8 +128,6 @@ def is_notebook() -> bool:
 if is_notebook(): 
     print('Notebook mode')
     args = p.parse_args(input_args)
-    os.chdir(path_to_data)
-    print('Working directory is now %s' %os.getcwd())
     if args.nbplot == 'widget':
         print('widget')
         # %matplotlib widget
@@ -213,65 +141,29 @@ else:
     args = p.parse_args()
 
 
-# -
-
-# ## Load data and organise output filenames
-
 # +
-# Load data and apply timestamp
-geod_store = []
-if len(args.geod_file) == 1:
-    print('Found:')
-    files = glob(args.geod_file[0])
-    print([f + ',' for f in files])
-else:
-    files = args.geod_file
-for file in files:
-    print(file)
-    geod = pd.read_parquet(file.strip())
-    if 'YY' in geod.columns:
-        geod.index = pp.create_time_index(geod)
-        geod = geod.drop(labels=['YY', 'DOY', 'Seconds'], axis='columns')
-    else:
-        print('The parquet file provided appears to be a multi-batch file, continuing on this basis...')
-    geod_store.append(geod)
+WORKING_DIRECTORY = os.path.join(os.environ['GNSS_WORK'], args.site)
+os.chdir(WORKING_DIRECTORY)
+print('Working directory is now %s' %os.getcwd())
 
-geod = pd.concat(geod_store, axis=0)
-geod = geod.sort_index()
-geod = geod[~geod.index.duplicated()]
+path_output_L2 = os.path.join(os.environ['GNSS_L2DIR'], args.site)
+print(f'Level-2 Directory: {path_output_L2}')
 # -
 
-plt.figure()
-plt.plot(geod.index, geod.Latitude, 'o')
+# ## Load Level-1 data
 
-# Define output filenames
-output_to_pre = '{site}_{ys}_{ds}_{ye}_{de}'.format(
-    site=args.site,
-    ys=geod.index[0].year,
-    ds=geod.index[0].timetuple().tm_yday,
-    ye=geod.index[-1].year,
-    de=geod.index[-1].timetuple().tm_yday
-)
+level1_path = os.path.join(os.environ['GNSS_L1DIR'], args.site, '*_geod.parquet')
+f = glob(level1_path)
+if len(f) == 0:
+    raise FileNotFoundError(f'No level-1 file found for {args.site}.')
+elif len(f) > 1:
+    raise ValueError(f'More than one level-1 file found for {args.site}.')
+else:
+    f = f[0]
+print(f'Loading Level-1 file: {f}...')
+geod = pd.read_parquet(f.strip())
 
-# Save a full concatenated parquet file.
-if not args.noconc:
-    geod_out = '%s_geod.parquet' %output_to_pre
-    # Don't do this save if the proposed output file matches the user-provided file (based on filename)
-    if geod_out != args.geod_file[0]:
-        if os.path.exists(geod_out):
-            os.remove(geod_out)
-            print('Old concatenated parquet file %s found, replaced.' %geod_out)
-        geod.to_parquet(geod_out)
-
-# Other outputs are appended '_disp' rather than '_geod'.
-output_to_pre = output_to_pre + '_disp'
-output_to =  '%s.h5' %output_to_pre
-output_v24h_csv = '%s_v24h.csv' %output_to_pre
-
-# If there is an existing file, delete it to prevent conflicts.
-if os.path.exists(output_to):
-    os.remove(output_to)
-    print('Old main output file found, deleted.')
+f
 
 # ## Apply user pole corrections
 
@@ -464,7 +356,40 @@ if not args.stake:
     xyz = filtd_disp.filter(items=('x', 'y', 'z'), axis='columns')
     xyz = xyz[filtd_i.interpolated == 0]
 
-# ## Calculating and saving velocities
+# ## Export to disk
+
+# +
+# Define output filenames
+output_to_pre = '{site}_{ys}_{ds}_{ye}_{de}'.format(
+    site=args.site,
+    ys=geod.index[0].year,
+    ds=geod.index[0].timetuple().tm_yday,
+    ye=geod.index[-1].year,
+    de=geod.index[-1].timetuple().tm_yday
+)
+
+# Other outputs are appended '_disp' rather than '_geod'.
+output_L2_base = os.path.join(path_output_L2, f'{output_to_pre}_disp')
+output_L2_H5 =  '%s.h5' %output_L2_base
+
+# Make sure that directory gets created, it may not exist yet
+os.makedirs(path_output_L2, exist_ok=True)
+
+# -
+
+# If there is an existing file, delete it to prevent conflicts.
+if os.path.exists(output_L2_H5):
+    os.remove(output_L2_H5)
+    print('Old main output file found, deleted.')
+
+# ### Save displacements
+
+# Save displacements to disk
+xyz.to_hdf(output_L2_H5, 'xyz', format='table')
+print('Saved displacements.')
+print('Main output file: %s ' %output_L2_H5)
+
+# ### Calculate and save velocities
 
 if not args.stake:
     # Calculate velocities
@@ -474,10 +399,16 @@ if not args.stake:
     dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
     v_24h = pd.DataFrame({'v_24h':v_24h, 'obs_cover_percent':dayperc}, index=v_24h.index)
 
+    v_24h.to_hdf(output_L2_H5, 'v_24h', format='table')
+    output_v24h_csv = '%s_v24h.csv' %output_L2_base
+    v_24h.to_csv(output_v24h_csv)
+    print('24-hour velocities also exported to: %s.' %output_v24h_csv)
+
     # Longer-term velocities, following Doyle 2014 approach
     d6h = filtd_disp.resample('6H').mean()
     p15d = d6h.resample('15D').first()
     v15d = (p15d.x.shift(1) - p15d.x) * pp.v_mult('15D')
+    v15d.to_hdf(output_L2_H5, 'v_15d', format='table')
 
     # Regression-based approach
     # !!TODO!! implement a mix of Doyle for continuous and this for daily occs...
@@ -492,23 +423,10 @@ if not args.stake:
 
     # consider calculating uncertainties? 
     # To what degree is this RMS? How do uncertainties reduce by avging?
+    if args.v6h:
+        v_6h = pp.calculate_short_velocities(filtd_disp['x'], '6H')
+        v_6h.to_hdf(output_L2_H5, 'v_6h', format='table')
 
-    v_6h = pp.calculate_short_velocities(filtd_disp['x'], '6H')
-
-    v_24h.to_hdf(output_to, 'v_24h', format='table')
-    v_24h.to_csv(output_v24h_csv)
-    v_6h.to_hdf(output_to, 'v_6h', format='table')
-
-    print('24-hour velocities also exported to: %s.' %output_v24h_csv)
-
-v_24h
-
-# ## Save displacements
-
-# Save displacements to disk
-xyz.to_hdf(output_to, 'xyz', format='table')
-print('Finished.')
-print('Main output file: %s ' %output_to)
 
 # ## Diagnostic plots of final outputs
 
@@ -525,7 +443,7 @@ if not args.noplot and args.stake:
     plt.figure()
     plt.plot(geod_neu_xy.x, geod_neu_xy.y, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
     plt.title('Stake/Quick-Pos X-Y')
-    plt.savefig('%s_xy.png' %output_to_pre, dpi=300)
+    plt.savefig('%s_xy.png' %output_L2_base, dpi=300)
 
 # ### For GPS stations
 
@@ -544,7 +462,7 @@ if do_plot:
     plt.ylabel('Metres')
     plt.title('%s X - Y' %args.site)
     plt.legend()
-    plt.savefig('%s_xy.png' %output_to_pre, dpi=300)
+    plt.savefig('%s_xy.png' %output_L2_base, dpi=300)
 
 # Plot Time versus X
 if do_plot:
@@ -554,7 +472,7 @@ if do_plot:
     plt.plot(xyz.index, xyz.x, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
     plt.ylabel('Metres')
     plt.title('%s X - Time' %args.site)
-    plt.savefig('%s_xt.png' %output_to_pre, dpi=300)
+    plt.savefig('%s_xt.png' %output_L2_base, dpi=300)
 
 # Plot Y versus Time
 if do_plot:
@@ -564,7 +482,7 @@ if do_plot:
     plt.plot(xyz.y, xyz.index, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
     plt.xlabel('Metres')
     plt.title('%s Time - Y' %args.site) 
-    plt.savefig('%s_ty.png' %output_to_pre, dpi=300)
+    plt.savefig('%s_ty.png' %output_L2_base, dpi=300)
 
 # Plot Time versus Z
 if do_plot:
@@ -574,7 +492,7 @@ if do_plot:
     plt.plot(xyz.index, xyz.z, '.', color='tab:purple', alpha=0.3, label='Final retained epochs')
     plt.ylabel('Metres')
     plt.title('%s Time - Z' %args.site) 
-    plt.savefig('%s_tz.png' %output_to_pre, dpi=300)
+    plt.savefig('%s_tz.png' %output_L2_base, dpi=300)
 
 # Plot 24-hour differenced velocities
 if do_plot:
@@ -588,17 +506,10 @@ if do_plot:
     ax2 = plt.subplot(212, sharex=ax1)
     v_24h.obs_cover_percent.plot(drawstyle='steps-pre', ax=ax2)
     plt.ylabel(r'% daily obs cover')
-    plt.savefig('%s_v24h.png' %output_to_pre, dpi=300)
-
-# Plot instantaneous 6-hour differenced velocities
-if do_plot:       
-    plt.figure()
-    v_6h.plot()
-    plt.title('%s Instantaneous 6H velocity' %args.site)
-    plt.ylabel('m/yr')
-    plt.savefig('%s_v6h.png' %output_to_pre, dpi=300)
+    plt.savefig('%s_v24h.png' %output_L2_base, dpi=300)
 
 # Plot velocities over other window lengths
+# needs uncertainties!
 if do_plot:       
     plt.figure()
     v15d.plot(drawstyle='steps-pre', label='15d')
@@ -606,56 +517,69 @@ if do_plot:
     plt.title('%s 15/30 Day velocity' %args.site)
     plt.ylabel('m/yr')
     plt.legend()
-    plt.savefig('%s_v15d.png' %output_to_pre, dpi=300)
+    plt.savefig('%s_v15d.png' %output_L2_base, dpi=300)
+
+# +
+# Plot instantaneous 6-hour differenced velocities
+# if do_plot:       
+#     plt.figure()
+#     v_6h.plot()
+#     plt.title('%s Instantaneous 6H velocity' %args.site)
+#     plt.ylabel('m/yr')
+#     plt.savefig('%s_v6h.png' %output_L2_base, dpi=300)
+# -
 
 # ## Development feature: subset the parquet file to a smaller file
 # Use this to save a smaller dataset which you can use with this Notebook during testing of filtering procedures. This saves a dataset which contains only unmodified data, i.e. no filtering has been applied to it!
 
-if is_notebook():
-    # Put in your dates of interest here
-    smaller_data = geod.loc['2021-10-01':'2021-12-31']
-    # Then let's work out the correct filename
-    smaller_fn = '{site}_{ys}_{ds}_{ye}_{de}.parquet'.format(
-        site=args.site,
-        ys=smaller_data.index[0].year,
-        ds=smaller_data.index[0].timetuple().tm_yday,
-        ye=smaller_data.index[-1].year,
-        de=smaller_data.index[-1].timetuple().tm_yday
-    )
-    smaller_data.to_parquet(smaller_fn)
-    print('Output to %s.' %smaller_fn)
+# +
+# if is_notebook():
+#     # Put in your dates of interest here
+#     smaller_data = geod.loc['2021-10-01':'2021-12-31']
+#     # Then let's work out the correct filename
+#     smaller_fn = '{site}_{ys}_{ds}_{ye}_{de}.parquet'.format(
+#         site=args.site,
+#         ys=smaller_data.index[0].year,
+#         ds=smaller_data.index[0].timetuple().tm_yday,
+#         ye=smaller_data.index[-1].year,
+#         de=smaller_data.index[-1].timetuple().tm_yday
+#     )
+#     smaller_data.to_parquet(smaller_fn)
+#     print('Output to %s.' %smaller_fn)
+# -
 
 # ## Under development: calculating velocities over flexible window lengths
 
-### Try a flexible window length approach on raw data.
-filt_manual = pp.filter_positions(geod_neu_xy)
-# Doyle et al use 6H positions
-# Can I use regression across several days to estimate the accuracy/quality of the single-day-obs used?
-fmanres = filt_manual.x[(filt_manual.index.hour >= 9) & (filt_manual.index.hour <= 15)].resample('1D').mean()
+# +
+# ### Try a flexible window length approach on raw data.
+# filt_manual = pp.filter_positions(geod_neu_xy)
+# # Doyle et al use 6H positions
+# # Can I use regression across several days to estimate the accuracy/quality of the single-day-obs used?
+# fmanres = filt_manual.x[(filt_manual.index.hour >= 9) & (filt_manual.index.hour <= 15)].resample('1D').mean()
 
-#fmanres['2021-12-04'] = np.nan
-#fmanres['2021-12-05'] = np.nan
-## Velocity over a minimum window length, looking ahead for the first position value at least x days away from current obs, otherwise more.
-# need to start with a 'good' date, how best to identify this?
-procdate = fmanres.index[0] #pd.Timestamp('2021-05-10')
-store = []
-while True:
-    loc_today = fmanres.loc[procdate]
-    loc_next = fmanres.loc[procdate + pd.Timedelta(days=15):]
-    loc_next = loc_next.dropna()
-    if len(loc_next) == 0:
-        print('End of series')
-        break
-    date_next = loc_next.index[0]
-    loc_next = loc_next.iloc[0]
-    print(loc_next)
-    tdiff = date_next - procdate
-    diff = np.abs(loc_next - loc_today)
-    vel = diff * pp.v_mult('%sD'%tdiff.days)
-    store.append(dict(start=procdate, finish=date_next, disp=diff, velocity=vel))
-    procdate = date_next
-outp = pd.DataFrame(store)
-
-360-312.759553
+# +
+# #fmanres['2021-12-04'] = np.nan
+# #fmanres['2021-12-05'] = np.nan
+# ## Velocity over a minimum window length, looking ahead for the first position value at least x days away from current obs, otherwise more.
+# # need to start with a 'good' date, how best to identify this?
+# procdate = fmanres.index[0] #pd.Timestamp('2021-05-10')
+# store = []
+# while True:
+#     loc_today = fmanres.loc[procdate]
+#     loc_next = fmanres.loc[procdate + pd.Timedelta(days=15):]
+#     loc_next = loc_next.dropna()
+#     if len(loc_next) == 0:
+#         print('End of series')
+#         break
+#     date_next = loc_next.index[0]
+#     loc_next = loc_next.iloc[0]
+#     print(loc_next)
+#     tdiff = date_next - procdate
+#     diff = np.abs(loc_next - loc_today)
+#     vel = diff * pp.v_mult('%sD'%tdiff.days)
+#     store.append(dict(start=procdate, finish=date_next, disp=diff, velocity=vel))
+#     procdate = date_next
+# outp = pd.DataFrame(store)
+# -
 
 

@@ -2,6 +2,8 @@
 
 This package provides functionality to kinematically process differential GNSS/GPS observations collected on moving ice (using TRACK), and to post-process them to yield displacements and velocities.
 
+If this is your first time using this package to process GNSS data, suggest reading the HISLIDE data user guide before continuing further.
+
 ## octopus.unil.ch quick-start
 
 Use the first terminal for processing. 
@@ -48,7 +50,7 @@ Assumes the following pre-requisites:
 8. `conc_daily_geod`: Concatenate daily TRACK GEOD files to year.
 9. `calculate_local_origin`: Only if this is a new site, to calculate local origin position. If this is an existing site then you should already have a file 'origin_<site>.csv' available.
 10. `gnss_disp_vel.py`: Preferentially run interactively/as notebook. Transform coordinates, filter data, convert to along/across-TRACK displacements, calculate velocities. Exclude periods of data based on the user-input exclusion file. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
-11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future.
+11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future. (rotation matrix, site origin)
 12. `seasonal_annual_disp.py` : To calculate seasonal and annual displacements.
 
 Example using site **lev5**, 2021, days 129 to 242, without IONEX:
@@ -410,7 +412,7 @@ E.g. those taken when GPS has powered down so we need to get seasonal/annual dis
 
 There are likely to be multiple temporary positions in one raw leica file, corresponding to a number of rover locations.
 
-It's probably easiest to do this in a completely separate gps processing folder, also with the gps_config folder pulled down from the SVN repository, in order to avoid filename clashes. Also copy over the relevant base station and orbit files.
+It's probably easiest to do this in a completely separate gps processing folder to avoid filename clashes. Also copy over the relevant base station and orbit files.
 
 First convert the leica file to rinex file(s) using process_rinex. Then window this rinex file into separate rinex files for each rover. Flight timings are very helpful here. You can first check the contents of the rinex file, for example using teqc:
 
@@ -433,22 +435,21 @@ teqc -st 120000 +dm 28 levr_2430_ol_12o > lev6_<doy>0_ol.12o
 ```
 
 (Use the same filename format as proper rinex files so that TRACK knows what to look for.)
-  
-Get the APR coordinates to give to TRACK by uploading the rinex file to:
+ 
+Next, run a PPP analysis on the RINEX file using:
 
 https://webapp.csrs-scrs.nrcan-rncan.gc.ca/geod/tools-outils/ppp.php
 
-(The other PPP service linked to above doesn't seem to work for these small rinex files. Also, the estimate in the rinex header is also generally incorrect after windowing to each site.)
+You now have two different options:
 
-N.b. PPP services don't necessarily appear to give locations accurate enough by themselves - you do have to process the measurements kinematically through `process_dgps`.
- 
-Now run `process_dgps` for each rover site you wish to process. Or, run TRACK manually, similar to this:
-
-```bash
-track -f gps_config/TRACK_rusb.cmd -d 137 -s 1650083.1597 1856832.1270 5856429.0647 0.1 0.15 1 rusb lev5 22 > lev5_rusb_2022_137.out
-```
+* Use the PPP analysis to provide APR coordinates to TRACK, then process the RINEX file kinematically with `process_dgps`.
+* Use the outputs of the PPP analysis directly, by converting them to a GEOD parquet file of the same format produced by `concatenate_geod`. To do this, adapt the script `ppp_csv_to_parquet.py`.
 
 Copy the GEOD results files into your main GPS processing directory. You'll then be able to concatenate the output GEOD file to the main rover dataset when you run concatenate_geod. 
+
+### Level-0 data
+
+The RINEX files constitute Level-0 data for archival. Compress these files to CompactRINEX using RNXCRZ.
 
 
 ## Concatenate the TRACK files
@@ -457,15 +458,20 @@ The GEOD TRACK output files need to be combined together, removing the overlappi
 
 Use `conc_daily_geod` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation near the start of this readme). 
 
-
-## Correcting pole leans
-
-This can be attempted by fitting functions to remove the lean and leave the residual.
-It's best to write your own script to do this on a case by case basis.
-Load in the GEOD file, do alterations on the NEU data in it, and re-save the GEOD file.
- 
   
 ## Converting to displacements and velocities
+
+You need the following directory structure, make sure that the environment variables in the shell script gnss.sh are updated with these paths and `source`d before continuing:
+
+* `GNSS_WORK`: sub-structure contains:
+	* `{site}`
+		* `geod_bales/`
+			* `*GEOD.parquet`
+		* `rotation_{site}.dat` (if already created)
+		* `origin_{site}.csv` (if already created)
+		* `exclusions_{site}.csv` (if needed)
+* `GNSS_L1DIR` : location to store Level-1 data
+* `GNSS_L2DIR` : location to store Level-2 data
 
 ### Site origin
 
@@ -477,9 +483,17 @@ If this is the first occasion of processing for this site,  run
 calculate_local_origin <site> <Parquet file>
 ```
 
+### Correcting pole leans
+
+This can be attempted by fitting functions to remove the lean and leave the residual.
+It's best to write your own script to do this on a case by case basis.
+
+
 ### Displacements and velocities of batch(es)
 
-Use `gnss_disp_vel.py`. This can be run on the command line or as a Notebook.
+**Level-1 data generation:** Use `export_level1.py` to output a complete GEOD parquet file. This forms the Level-1 dataset.
+
+**Level-2 data generation:**  Use `gnss_disp_vel.py`. This can be run on the command line or as a Notebook.
 
 If older data for this site have already been post-processed then a file `rotation_<site>.dat` will exist, defining the coefficients to rotate the coordinates into along/across-TRACK displacement. Place this file in the working directory.
 
@@ -508,6 +522,28 @@ The script applies different filtering and averaging approaches depending on whe
 ### Estimating seasonal and annual displacements
 
 This can be considered an analysis task.  See `seasonal_annual_disp.py`.
+
+
+## Tidying up and data archival
+
+### Internal archival/retention
+
+Archive the raw receiver files internally. 
+
+Retain the following files generated during processing for internal (re-)use:
+
+* Parquets of GEOD batches, i.e. those output by `conc_daily_geod.py`
+* Rotation matrix DAT
+* Origin CSV 
+* Exclusions CSV
+
+### Public data deposition
+
+* Level-0: CompactRINEX files.
+* Level-1: Parquet files containing all GEOD data; processing logs.
+* Level-2 HDF-5 files, CSV files where relevant.
+* Also deposit relevant metadata (installation/maintenance logs, photos).
+
 	
 
 ## Other information
