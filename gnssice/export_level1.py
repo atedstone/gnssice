@@ -198,10 +198,7 @@ def export(args, geod):
     #if geod_out != args.geod_file[0]:
     
     # Make sure that directory gets created, it may not exist yet
-    try:
-        os.makedirs(path_output_L1)
-    except FileExistsError:
-        pass
+    os.makedirs(path_output_L1, exist_ok=True)
         
     if os.path.exists(geod_out):
         os.remove(geod_out)
