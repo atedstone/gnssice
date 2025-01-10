@@ -123,8 +123,8 @@ def apply_exclusions(
 def filter_positions(
     data : pd.DataFrame,
     thresh_rms : float=50.0,
-    thresh_h : float=9.0,
-    thresh_N : int=0,
+    thresh_h : float=10.0,
+    thresh_N : int=3,
     thresh_NotF : int=0
     ) -> pd.DataFrame:
     """
@@ -284,7 +284,7 @@ def remove_displacement_outliers(
         if n == 0:
             smoothed = data.filter(items=('x','y','z'), axis=1) \
                         .resample('15Min').first() \
-                        .rolling('24H', center=True).median() \
+                        .rolling('24h', center=True).median() \
                         .resample(interval).asfreq() \
                         .interpolate()
             diffs = (data - smoothed).apply(np.abs)
@@ -414,7 +414,8 @@ def calculate_daily_velocities(
     flag_iterp : pd.Series=None
     ) -> pd.Series:
     """
-    Calculate 24-h along-track velocity. Units metres/year.
+    Calculate 24-h along-track velocity using average position in first hour of each day.
+    Units metres/year.
 
     if tz is provided, first localise the (assumed UTC) measurements to local
     timezone before calculating the velocities.
@@ -425,7 +426,7 @@ def calculate_daily_velocities(
     if tz is not None and tz != '':
         x = x.tz_localize(tz)
 
-    v_24h = x.resample('24H').first()
+    v_24h = x.resample('24h').apply(lambda x: x[x.index.hour == 0].mean())
     v_24h = (v_24h.shift(1) - v_24h) * YEAR_LENGTH_DAYS
 
     if flag_iterp is not None:
