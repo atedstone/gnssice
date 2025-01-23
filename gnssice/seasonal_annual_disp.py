@@ -183,8 +183,7 @@ periods = {
     'ES':[(5,1), (6,30), 5],
     'LS':[(7,1), (8,30), 5]
     }
-
-
+# -
 for site in sites:
 
     print(site)
@@ -221,13 +220,13 @@ for site in sites:
     disps_pd.to_csv(os.path.join(os.environ['GNSS_L2DIR'], site, f'{site}_seasonal_annual_{year_start}_{year_end}.csv'), 
                     index=False)
     display(disps_pd)
-# -
 # ---
 # ## Reloading example
 
 store = []
 for site in sites:
-    fglob = os.path.join(os.environ['GNSS_L2DIR'], f'{site}/{site}_seasonal_annual_*.csv')
+    # os.environ['GNSS_L2DIR']
+    fglob = os.path.join('/scratch/hislide-level2/', f'{site}/{site}_seasonal_annual_*.csv')
     fs = glob(fglob)
     if fs is None:
         raise FileNotFoundError(f'No file for {site}.')
