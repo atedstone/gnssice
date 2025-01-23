@@ -6,7 +6,7 @@ If this is your first time using this package to process GNSS data, suggest read
 
 ## octopus.unil.ch quick-start
 
-Use the first terminal for processing. 
+Setup two terminals. Use the first terminal for processing. 
 
 Terminal 1:
 
@@ -16,7 +16,22 @@ ssh octo
 # Connect to compute node
 ssh [node]
 # Set up environment
-source gnss.sh
+source gnss_process.sh
+```
+
+Where gnss_process.sh contains lines similar to this:
+
+```bash
+# Python env
+mamba activate gnss
+# TRACK
+module load gamit_globk
+# Change to working location
+cd /work/atedstone/
+# List contents
+ls
+# Set up lightweight server so we can see PNGs
+python -m http.server 8080 &
 ```
 
 In a second terminal, set up port forwarding to the lightweight HTTP server so that we can look at PNG files of outputs when needed.
@@ -33,7 +48,6 @@ Assumes the following pre-requisites:
 
 * Local machine is Unix or Mac, octopus is configured in SSH config with X11 forwarding enabled
 * gnssice installed on octopus
-* bash script `gnss.sh` is on octopus. 
 
 
 
