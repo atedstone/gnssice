@@ -4,7 +4,27 @@ This package provides functionality to kinematically process differential GNSS/G
 
 If this is your first time using this package to process GNSS data, suggest reading the HISLIDE data user guide before continuing further.
 
-## octopus.unil.ch quick-start
+## Installation of package
+
+Set up a conda or mamba environment:
+
+```bash
+conda create -n gnss 
+conda activate gnss
+```
+
+If you haven't already got it, clone the gnssice repo, change into its directory then install in-place using pip (this will also install all dependencies):
+
+```bash
+pip install -e .
+```
+
+This means that it won't matter where you then do your main working, the scripts will always be accessible. *(Note: the command line interface uses entry points: see the full list in `setup.cfg`.)*
+
+**Important**: This installation allows you to process Level-1 to Level-2 only. For Level-0 to Level-1, several other dependencies are required -- see below for information.
+
+
+## Level-0 to Level-1 processing only: octopus.unil.ch quick-start
 
 Setup two terminals. Use the first terminal for processing. 
 
@@ -53,6 +73,10 @@ Assumes the following pre-requisites:
 
 ## Overview of workflow
 
+### Level-0 to Level-1 only:
+
+If you only want to process level-1 to level-2 then you can dis-regard these steps!
+
 1. Ensure everything is installed.
 2. Download final orbit (sp3) files for year.
 3. (Optional): Download IONEX files.
@@ -62,12 +86,15 @@ Assumes the following pre-requisites:
 7. `process_dgps`: Do TRACK kinematic processing.
     6a. Process 'temporary' fixes taken during redrilling/flights.
 8. `conc_daily_geod`: Concatenate daily TRACK GEOD files to year.
+
+### Level-1 to Level-2:
+
 9. `calculate_local_origin`: Only if this is a new site, to calculate local origin position. If this is an existing site then you should already have a file 'origin_<site>.csv' available.
 10. `gnss_disp_vel.py`: Preferentially run interactively/as notebook. Transform coordinates, filter data, convert to along/across-TRACK displacements, calculate velocities. Exclude periods of data based on the user-input exclusion file. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
 11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future. (rotation matrix, site origin)
 12. `seasonal_annual_disp.py` : To calculate seasonal and annual displacements.
 
-Example using site **lev5**, 2021, days 129 to 242, without IONEX:
+Full example using site **lev5**, 2021, days 129 to 242, without IONEX:
 
 ```bash
 # Prepare
@@ -99,8 +126,9 @@ gnss_disp_vel.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
 gnss_disp_vel.py lev5  -f ...
 ```
 
+## Detailed Usage: Level-0 to Level-1
 
-## Strategy for multi-year field campaigns
+### Strategy for multi-year field campaigns
 
 This workflow treats data in batches.
 
@@ -118,7 +146,7 @@ However, if a different base station needs to be used for certain periods, there
 3. rover_bas1_year2_0_100
 
 
-## Summary of file types
+### Summary of file types
 
 * Orbit files: `igs<doy>.sp3`
 * RINEX files:
@@ -135,18 +163,10 @@ However, if a different base station needs to be used for certain periods, there
     - Figures: `<rover>_<base>_<year>_<doy>_NEU.png` or `TRACKpy.NEU.<rover>.LC.<doy>.eps` (old)
 	- Processing session log: `gps.TRACK.<rover>.log`
 * Post-processed files: `<rover>_<year>_geod.dat` or `<rover>_<start year>_<end year>_geod.dat`
-* Post-processing ancillary files:
-	- Rotation file: `rotation_<site>.dat`
-	- Origin file: `origin_<site>.csv`
-	- Exclusions file: `exclusions_<site>.csv`
-	- Corrections file: `corrections_<site>.csv` (not currently implemented 2022-07).
-* Post-processing outputs:
-	- Various PNG plots
-	- HDF5 file containing 24-h and 6-h velocities, xyz displacement.
-	- CSV file containing 24-h velocities.
 
 
-## Installation
+
+### Installation of dependencies
 
 More about GLOBK/Gamit: http://chandler.mit.edu/~simon/gtgk/script_help.htm
 
@@ -162,20 +182,7 @@ The workflow also requires codes to convert raw receiver data files to RINEX, wh
 - For newer receivers (e.g. ublox), RTKLIB (https://www.rtklib.com/) is often suitable.  Download the latest source (https://github.com/tomojitakasu/RTKLIB) and then build the `convbin` utility (this package does not use any other RTKLIB utilities). For build instructions see Section 4 of the RTKLIB manual.
 - *IMPORTANT*: As of Dec. 2024, Rinex processing is only implemented using TEQC! Modifications needed before ublox receivers can be processed.
 
-Set up a conda or mamba environment:
-
-```bash
-conda create -n gnss 
-conda activate gnss
-```
-
-If you haven't already got it, clone the gnssice repo, change into its directory then install in-place using pip (this will also install all dependencies):
-
-```bash
-pip install -e .
-```
-
-This means that it won't matter where you then do your main working, the scripts will always be accessible. *(Note: the command line interface uses entry points: see the full list in `setup.cfg`.)*
+Install the `gnssice` package onto your working environment if you haven't already.
 
 Set up a working directory in your scratch space, e.g. `/scratch/<USER>/gps_workspace_<YEAR>/`. 
 
@@ -194,45 +201,26 @@ You need to install this to your home directory.
 	 b. Add the `<RNXCMPdirectory>/bin/` to your unix path.
 
 	 
-## Note on gnss.py functionality
-
-This module contains two classes used for Python-based GPS processing:
-
-```python
-gnss.RinexConvert
-gnss.Kinematic
-```
-
-To get full information on the module, at the command line run:
-
-```bash
-pydoc gnss   #(this displays documentation on the command line)
-```
-
- -or-
-
-```bash
-pydoc -w gps   #(this saves documentation to gps.html, to be viewed in a web browser)
-```
+### Note on gnss.py functionality
 
 RinexConvert has been developed with Leica 530 and 1200 receivers in mind. Some functionality works with other receivers, e.g. window_overlap works with Trimble dat files (but not .T00/.T01).
 
 
-## Preparations
+### Preparations
 
 Make sure you are putting all these following files into the scratch/working space you set up above.
 
 Use a terminal window to do the following....
 
 
-### To overlap or not?
+#### To overlap or not?
 
 For the Leverett transect 2009-2013 campaign, we processed RINEX files in overlapping 28-hour windows. However, for sites with longer baselines it is preferable to include use of IONEX files, which are delivered daily and cannot be overlapped. Furthermore, TRACK will fail if called with the `IONEX_FILE` option and overlap in **any** of the `sp3` or RINEX files. 
 
 This means that if you wish to process lower sites in overlapping windows and higher sites with IONEX maps then you will need to produce two separate sets of RINEX/SP3 files: one with overlaps, the other in pure daily form.
 
 
-### Get the orbit files
+#### Get the orbit files
 
 ```bash
 get_orbits <year> <start doy> <end doy>
@@ -251,7 +239,7 @@ cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
 Also remember that the .sp3 naming scheme only contains the day of year as this is what TRACK understands - so if you're not careful when downloading from > 1 year you'll end up overwriting files. Best to only deal with one year's worth of data in scratch space at a time.
    
 
-### Optional: Get 3rd party base RINEX files.
+#### Optional: Get 3rd party base RINEX files.
 
 If required, download rinex files from another site to cover the gaps.
 
@@ -270,7 +258,7 @@ done
 Overlap/window the kellyville rinex files: see 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
 
 
-### Optional: IONEX files
+#### Optional: IONEX files
 
 Recommended for long baselines, e.g. > 100 km. See also the TRACK help info and Doyle et al. (2014) supplementary methods.
 
@@ -285,7 +273,7 @@ TRACK needs to be told about these files by adding the `IONEX_FILE` option in th
 **Note that use of IONEX files is incompatible with overlapping daily RINEX files.**
 
 
-### Update TRACK COMMAND file
+#### Update TRACK COMMAND file
 
 Ensure that the TRACK command file is correct for the site you are processing. Basically, each base station needs its own command file. There are several details to get right.
 
@@ -299,7 +287,7 @@ Ensure that the TRACK command file is correct for the site you are processing. B
 * Check that the antmod_file is available.
 		
 	
-### Convert leica files to RINEX
+#### Convert leica files to RINEX
 
 Copy the raw Leica files for the rover and base into the scratch space.
 
@@ -316,7 +304,7 @@ After, you can delete any empty files:
 	find -size 0c -delete
 
 
-## Do the kinematic processing
+### Do the kinematic processing
 
 Pre-requisites:
 
@@ -325,7 +313,7 @@ Pre-requisites:
 - Open `process_dgps.py` and ensure that the default parameters for processing with your base station are set up - follow the format in the file. Again, set initial values based on recommendation above, unless you've more specific information to go on... 
 
 
-### A-priori coordinates
+#### A-priori coordinates
 
 For first day for each site use a priori coordinates of each site derived from online 
 
@@ -338,7 +326,7 @@ Subsequently select no. The program takes the APR coordinates from the previous 
 *In 2012 I had problems with coordinates from the above website. However, teqc estimates the daily positions and puts them in the top of daily rinex files - these seem to do the trick, so I used these instead. You might also find that the site_stats (see later) initially have to be loosened to deal with the APR coordinates. (AJT, September 2012).*
 
 
-### Processing
+#### Processing
 
 Open a terminal window at the scratch location. 
 **If using PuTTY make sure you also have Xming working - for figure windows.**
@@ -420,7 +408,7 @@ If a day or more accidentally or otherwise get missed during processing and you 
 - If you haven't finished processing the rest of the season, be sure to change filenames back to the appropriate LC files.
 
 
-### Dealing with temporary positions
+#### Dealing with temporary positions
 
 E.g. those taken when GPS has powered down so we need to get seasonal/annual displacement from one short survey.
 
@@ -461,21 +449,25 @@ You now have two different options:
 
 Copy the GEOD results files into your main GPS processing directory. You'll then be able to concatenate the output GEOD file to the main rover dataset when you run concatenate_geod. 
 
-### Level-0 data
+#### Level-0 data
 
 The RINEX files constitute Level-0 data for archival. Compress these files to CompactRINEX using RNXCRZ.
 
 
-## Concatenate the TRACK files
+### Concatenate the TRACK files
 
 The GEOD TRACK output files need to be combined together, removing the overlapping hours.
 
 Use `conc_daily_geod` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation near the start of this readme). 
 
-  
-## Converting to displacements and velocities
+Then export to a continuous Parquet file using `export_level1.py`.
 
-You need the following directory structure, make sure that the environment variables in the shell script gnss.sh are updated with these paths and `source`d before continuing:
+  
+## Detailed Usage: Processing from Level-1 to Level-2: To displacements and velocities
+
+### Installation
+
+As well as installing the package (see very top of this README), you need the following directory structure. 
 
 * `GNSS_WORK`: sub-structure contains:
 	* `{site}`
@@ -486,6 +478,12 @@ You need the following directory structure, make sure that the environment varia
 		* `exclusions_{site}.csv` (if needed)
 * `GNSS_L1DIR` : location to store Level-1 data
 * `GNSS_L2DIR` : location to store Level-2 data
+
+Set the paths to these folders using environment variables, which are used by the processing scripts to find and export data:
+
+* For Unix environments (including MacOS): see and update the accompanying shell script `gnss.sh`.  You can either transfer these variables into your `.bashrc` (or equivalent), or `source` the shell script.
+* For Windows environments: you will need to set equivalent environment variables using the Windows settings. See e.g. https://phoenixnap.com/kb/windows-set-environment-variable for more information.
+
 
 ### Site origin
 
@@ -538,28 +536,26 @@ The script applies different filtering and averaging approaches depending on whe
 This can be considered an analysis task.  See `seasonal_annual_disp.py`.
 
 
-## Tidying up and data archival
-
 ### Internal archival/retention
 
 Archive the raw receiver files internally. 
 
 Retain the following files generated during processing for internal (re-)use:
 
-* Parquets of GEOD batches, i.e. those output by `conc_daily_geod.py`
-* Rotation matrix DAT
-* Origin CSV 
-* Exclusions CSV
+- Parquets of GEOD batches, i.e. those output by `conc_daily_geod.py`
+- Rotation file: `rotation_<site>.dat`
+- Origin file: `origin_<site>.csv`
+- Exclusions file: `exclusions_<site>.csv`
+- Corrections file: `corrections_<site>.csv` (not currently implemented 2022-07).
 
 ### Public data deposition
 
 * Level-0: CompactRINEX files.
 * Level-1: Parquet files containing all GEOD data; processing logs.
-* Level-2 HDF-5 files, CSV files where relevant.
+* Level-2 HDF-5 files, CSV files where relevant; also PNGs.
 * Also deposit relevant metadata (installation/maintenance logs, photos).
 
 	
-
 ## Other information
 
 ### Additional notes about TRACK GEOD files
