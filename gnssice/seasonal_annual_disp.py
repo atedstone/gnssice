@@ -172,14 +172,14 @@ def calculate_disps(df, years, periods):
 
 
 # +
-sites = ['camp', 'f003', 'f004', 'fs05', 'kanu', 'lev5', 'lev6']
-    
+#sites = ['camp', 'f003', 'f004', 'fs05', 'kanu', 'lev5', 'lev6']
+sites = ['lev6']    
     
 # Syntax:: period_name: [(start_month, start_day), (end_month, end_day), tolerance_days]
 periods = {
     'Annual':[(5,1), (4,30), np.nan],
-    'Summer':[(5,1), (8,30), 5],
-    'Winter':[(9,1), (4,30), 5],
+    'Summer':[(5,1), (8,30), 20],
+    'Winter':[(9,1), (4,30), 20],
     'ES':[(5,1), (6,30), 5],
     'LS':[(7,1), (8,30), 5]
     }
@@ -222,6 +222,8 @@ for site in sites:
     display(disps_pd)
 # ---
 # ## Reloading example
+
+xyz.loc['2022-04']
 
 store = []
 for site in sites:

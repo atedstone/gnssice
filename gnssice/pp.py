@@ -113,9 +113,10 @@ def apply_exclusions(
     """
     
     excl = pd.read_csv(exclusion_file, parse_dates=['excl_start', 'excl_end'])
+    data['exclude'] = False
     for ix, row in excl.iterrows():
         print('Excluding %s - %s' %(row.excl_start, row.excl_end))
-        data.loc[row.excl_start:row.excl_end, :] = np.nan
+        data.loc[row.excl_start:row.excl_end, 'exclude'] = True
 
     return data
     
@@ -263,7 +264,7 @@ def remove_displacement_outliers(
     interval : str,
     iterations : int=2,
     mt : dict={'x':0.08, 'y':0.04, 'z':0.15},
-    median_win : str='2H',
+    median_win : str='2h',
     sigma_mult : float=2
     ):
     """
