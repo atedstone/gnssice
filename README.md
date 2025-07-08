@@ -9,7 +9,7 @@ If this is your first time using this package to process GNSS data, suggest read
 Set up a conda or mamba environment:
 
 ```bash
-conda create -n gnss 
+conda create -n gnss pip
 conda activate gnss
 ```
 
@@ -63,8 +63,17 @@ ssh octo -N -L localhost:8080:[node]:8080
 firefox localhost:8080
 ```
 
+Once you are finished with processing, in the first terminal remember to stop the web server process:
 
-Assumes the following pre-requisites:
+```bash
+# Find the process ID
+ps -u
+# Stop it
+kill -9 <PID>
+```
+
+
+N.b. this quick-start assumes the following pre-requisites:
 
 * Local machine is Unix or Mac, octopus is configured in SSH config with X11 forwarding enabled
 * gnssice installed on octopus
@@ -277,8 +286,7 @@ TRACK needs to be told about these files by adding the `IONEX_FILE` option in th
 
 Ensure that the TRACK command file is correct for the site you are processing. Basically, each base station needs its own command file. There are several details to get right.
 
-* Check the `obs_file` file extensions - they need to be set to the correct year suffix, otherwise you'll get 'olding' errors from TRACK.
-	- If using the workflow with 'overlapping' files, you will need `_ol` in the `obs_file` extensions, immediately before the file suffix.
+* If using the workflow with 'overlapping' files, you will need `_ol` in the `obs_file` extensions, immediately before the file suffix.
 * Check that the `site_pos` for the base station is correct.
 * Ensure that the DCB file is available.
 * Ensure that the `ante_off` settings are correct 
@@ -334,13 +342,13 @@ Open a terminal window at the scratch location.
 With loose `site_stats` in the TRACK cmd file, run only the first day of the site using a-priori coordinates:
 
 ```bash
-process_dgps <base> <rover> <start DOY> <start DOY +1> -ap <X> <Y> <Z>
+process_dgps <base> <rover> <year> <start DOY> <start DOY +1> -ap <X> <Y> <Z>
 ```
 
 Once this has completed, tighten the `site_stats` in the TRACK cmd file, then run:
 
 ```bash
-process_dgps <base> <rover> <start DOY> <end DOY>
+process_dgps <base> <rover> <year> <start DOY> <end DOY>
 ```
 	
 You don't have to process an entire site in one session. Enter the start day and guesstimate an appropriate end day. If you get fed up before the end day is reached, do `CTRL+C` to break out/halt the process (preferably between processing two days of data, rather than during).
