@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = 'gnssice'
 dynamic = ["version"]
-authors = ["Andrew Tedstone"]
+authors = [{name = "Andrew Tedstone", email= "andrew.tedstone@unil.ch"}]
 description = "Kinematic post-processing of GNSS data"
 keywords = ["GNSS"]
 readme= "README.md"
@@ -25,7 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
-requires_python = ">=3.10,<3.14"
+requires-python = ">=3.10,<3.14"
 dependencies = [
     "geopandas>=0.12.0",
     "matplotlib>=3",
@@ -58,4 +58,4 @@ version_file = "gnssice/_version.py"
 fallback_version = "0.0.1"
 
 [tool.setuptools.packages.find]
-include = 'gnssice'
+where = ["gnssice"]
