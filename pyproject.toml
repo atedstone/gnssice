@@ -8,6 +8,7 @@ requires = [
 build-backend = "setuptools.build_meta"
 
 [project]
+name = 'gnssice'
 dynamic = ["version"]
 
 # To write version to file
