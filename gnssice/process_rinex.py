@@ -77,7 +77,7 @@ def cli():
         fn = "all_" + args.site + "." + str(y) + "o"
         print ("File will be saved to " + fn)
         cmd = "teqc " + args.site + "*." + str(y) + "o > " + fn
-        status = gps.shellcmd(cmd)
+        status = gnss.shellcmd(cmd)
         print (status['stdout'])
         print (status['stderr'])
         
