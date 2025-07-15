@@ -566,6 +566,45 @@ Retain the following files generated during processing for internal (re-)use:
 	
 ## Other information
 
+### Working with U-Blox and RINEX-3
+
+There are a few issues here:
+
+- Generating compliant RINEX-3 files from ubx files
+- Arranging filenames that the workflow can understand
+
+#### Telling TRACK which observables to use
+
+If TRACK exits with `**DISASTER** No overlapping data at site` yet the RINEX files are definitely for the same day, then the issue is likely with specifying the observables. See email AT-Mike Floyd, 14.07.2025:
+
+You likely just need to give track a little guidance on what observables to use, since RINEX 3 has so many to choose from.
+
+You will see in your log file that, without any guidance, track has selected the following observables to use:
+
+```
+Observables used: 
+
+Site S    Primary      |    Secondary
+klsq G L1C L2W C1C C2W |  --- L5Q --- C5Q  
+ilhe G L1C --- C1C --- |  --- --- --- ---  
+```
+
+If you are only using GPS, [CL]1C and [CL]2W are indeed the most consistently available observables for KLSQ, with [CL]2L being your next most consistently available observables followed by [CL]5Q. But ILHE, using the u-blox receiver, is recording only [CL]2L for its lower frequency, which is the L2C broadcast signal that low-cost receivers are able to record.
+
+So I would simply try adding more information to the "obs_file" option at the top of your command file, e.g. see the track help page (~/gg/help/track.hlp) for details.
+
+Specifically, I would change your current "obs_file" option to something like
+
+```
+ obs_file
+  <S07> <S07>/<S07>_<day>0.<S09>o F L1C L2W C1C C2W L1C L2L C1C C2L
+  <S08> <S08>/<S08>_<day>0.<S09>o K L1C L2L C1C C2L
+```
+
+This at least got past the `**DISASTER** No overlapping data at site
+ilhe` message and produced a complete result.
+
+
 ### Additional notes about TRACK GEOD files
 
 Column descriptions:
