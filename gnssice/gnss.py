@@ -38,9 +38,11 @@ import os
 import pandas as pd
 import re
 import click
+from pathlib import Path
 
-INSTITUTION = 'University of Lausanne'
-OBSERVER = 'Andrew Tedstone'
+INSTITUTION = 'PLACEHOLDER'
+OBSERVER = 'PLACEHOLDER'
+GVT_FW = 'v1.32' # GVT firmware version, to put in RINEX headers
 
 def shellcmd(cmd, timeout_seconds=False, retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
@@ -354,15 +356,79 @@ def read_track_neu_file(
     
 
 class RinexConvert:
-    """Accomplish Rinex file processing from Leica MDB files."""
+    """Accomplish Rinex file processing from binary receiver files."""
     
     def __init__(self):
         """Initialise class variables."""
         self.institution = INSTITUTION
         self.observer = OBSERVER
-        
 
-    def leica2rinex(self, input_file, site, output_file):
+    def parse_rinex_filename(fn, to_numeric=False):
+        """ Extract and return elements of a RINEX file name 
+
+        to_numeric : bool. If True, parse DOY as integer.
+        returns : dict {site, DOY, yr (2-charac), year (YYYY)}
+        """
+        fn = os.path.split('/')[-1]
+        site = fn[0:4]
+        doy = fn[4:7]
+        yr = fn[-4:-2]
+        if to_numeric:
+            doy = int(doy)
+        year = int(yr) + 2000
+        return {
+            'site':site,
+            'DOY':doy,
+            'yr': yr,
+            'year':year
+        }
+        
+    def gvt_to_rinex(
+        self, 
+        input_file : str, 
+        site : str,
+        rcvr : str=f'NA / CryoLogger GVT / ZED-F9P FW{GVT_FW}'
+        antenna : str='NA / SFETOP106',
+        site_type : str='Glacier',
+        observer : str=None,
+        ) -> None:
+        """ Convert a daily GVT u-blox file to a daily RINEX3 file. Wraps convbin.
+
+        input_file : the path to the .ubx file.
+        site : the 4-character site identifier.
+        rcvr : sets the receiver in the RINEX header.
+        antenna : sets the antenna in the RINEX header.
+        site_type: sets the marker type in the RINEX header.
+        observer : sets the observer in the RINEX header.
+
+        Behaviour:
+        - We produce RINEX files with 10-second sampling.
+        - We allow a tolerance of 0.01 seconds.
+        - We use the receiver-specific option TADJ to force floating-point seconds to integer values.
+        - We output filenames in the RINEX2 format, for backward compatibility with existing workflow.
+
+        """
+        if observer is None:
+            observer = '{o} / {i}'.format(i=self.institution, o=self.observer)
+
+        output_dir = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site)
+        Path(output_dir).mkdir(exist_ok=True)
+
+        cmd = ( f'convbin -hm {site} -c {site} -ho {observer} -hr {rcvr} '
+                f'-ha {antenna} -ht {site_type} -ti 10 -tt 0.01 -ro "TADJ=1.0 '
+                f'-o \%r\%n0.\%yo -d {output_dir} {input_file}'
+            )
+        stdout, stderr = shellcmd(cmd)
+
+        return (stdout, stderr)
+
+
+    def leica2rinex(
+        self, 
+        input_file : str, 
+        site : str,
+        output_file : str
+        ) -> None:
         """Convert a leica mdb file to a rinex file. A simple wrapper to teqc.
         
         Whilst this will convert very large single mdb files, be aware
@@ -453,79 +519,39 @@ class RinexConvert:
         toret['joined_rinex'] = joined_files
         return toret
         
-                 
-    def window_overlap(
+
+    def leica_to_daily_rinex(
         self, 
         input_file : str,
-        st_offset : str='00:00:00', 
-        dh : int=24,
-        leica: bool=False,
         site: str=None, 
         moving: int=1,
         start_date: datetime.datetime=None,
         end_date: datetime.dateime=None
         ) -> None:
-        """ Split one large rinex file into windowed files.
-            
+        """ 
+        Generate daily RINEX files from one large Leica MDB file.
+        
         Inputs:
             input_file: filename of the rinex file to split into windowed files.
-            st_offset: The time of the day before the main day at which to begin. Eg. 22:00:00 starts processing at 10pm 
-                    on day before. Provide as a string, i.e. "_22:00:00". 
-                    For no overlap , set to '00:00:00'
-            dh: duration of window in hours. E.g. 28. Integer. Default 24hours.
-            leica: set to True if input file is in raw leica format. If True,
-                also provide...
-                    site: recording site 4-character identifier.  
-                    moving: Is the site moving or static? 1 if moving, 0 if static. 
+            site: recording site 4-character identifier.  
+            moving: Is the site moving or static? 1 if moving, 0 if static. 
                     Defaults to 1 (moving)
-                    start_date: date to start processing from. 
-                    end_date: date to end processing at. 
-                    Supply dates in format [yyyy,m,d].
+            start_date: date to start processing from. 
+            end_date: date to end processing at. 
+            Supply dates as datetimes.
             
         E.g. Process from a raw leica file:
-            window_overlap("leica-file.m00","-22:00:00",28,
-                                 leica=True,
+            window_overlap("leica-file.m00","0",24,
                                  site="levb", 
                                  start_date=dt.datetime(...),end_date=dt.datetime(...))
-        E.g. Process from a rinex file:
-            window_overlap("rinexfile.11o","-22:00:00",28)
-        
-        Overlapping files will be output with _ol in their filename.
 
         Outputs:
             None.
             
         """
-        if leica == True:
-            add_leica = "-leica mdb -O.o '" + self.observer + "' -O.ag '" + \
-            self.institution + "' -O.mo '" + site + "' -O.mov " + str(moving) + " "
-        else:
-            add_leica = ""
-            # Extract information about the file.
-            status = shellcmd("teqc " + add_leica + "++config " + input_file + r" | grep '\-O\.mo\[nument\]' -a")
-            if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
-                print(status['stderr'])
-                return
-            ret = status['stdout']
-            site = ret[15:19].lower()
-            status = shellcmd("teqc " + add_leica + "++config " + input_file + r" | grep '\-O\.st\[art\]' -a")
-            if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
-                print(status['stderr'])
-                return
-            start_date = status['stdout']
-            
-            start_date = datetime.datetime(int(start_date[11:15]),
-                                           int(start_date[16:18]), 
-                                           int(start_date[19:21]))
-            
-            status = shellcmd("teqc " + add_leica + "++config " + input_file + r" | grep '\-O\.e\[nd\]' -a")
-            if status['stderr'] != '' and status['stderr'].find("Notice") == -1:
-                print(status['stderr'])
-                return
-            end_date = status['stdout']
-            end_date = datetime.datetime(int(end_date[11:15]),
-                                         int(end_date[16:18]), 
-                                         int(end_date[19:21]))
+
+        add_leica = "-leica mdb -O.o '" + self.observer + "' -O.ag '" + \
+        self.institution + "' -O.mo '" + site + "' -O.mov " + str(moving) + " "
 
         # This returns today's Julian day of Year ('yday' == 'year day', not yesterday!)
         start_doy = start_date.timetuple().tm_yday
@@ -536,20 +562,23 @@ class RinexConvert:
         print("and ends on " + end_date.strftime("%Y.%m.%d (DOY %j)"))
 
         if st_offset != '00:00:00':
-            ending = '0_ol.'
             # The window commences the day before the main day of interest
             cal_date = start_date - datetime.timedelta(days=1)
         else:
-            ending = '0.'
             # Window will start on day of interest
             cal_date = start_date
         
+        out_root = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site)
+        Path(out_root).mkdir(exist_ok=True)
+
         for doy in range(start_doy,end_doy + 1):
             print("Processing day " + str(doy))
-            
-            cmd = "teqc " + add_leica + "-st " + cal_date.strftime("%Y%m%d") + str(st_offset) + " +dh " + \
-            str(dh) + " " + input_file + " > " + site + "_" + str(doy).zfill(3) + ending + \
-            cal_date.strftime("%y") + "o"
+            output_file = os.path.join(
+                out_root,
+                '{site}{doy}0.{yr}o'.format(site=site, doy=str(doy).zfill(3), yr=cal_date.strftime("%y"))
+                )
+            cmd = "teqc " + add_leica + "-st " + cal_date.strftime("%Y%m%d") + " +dh 24" + \
+            " " + input_file + " > " + output_file
             print("    " + cmd)
             status = shellcmd(cmd)
             if status['stderr'] != '': #and status['stderr'].find("Notice") == False:
@@ -558,6 +587,43 @@ class RinexConvert:
             cal_date = cal_date + datetime.timedelta(days=1)
 
         print("Done.")
+
+
+    def window_overlap(
+        self, 
+        input_file : str,
+        st_offset : str='00:00:00', 
+        dh : int=24
+        ):
+        """ Make daily RINEX file with overlapping window into the preceding and subsequent days.
+
+        input_file : str with RINEX2 filename. This function assumes that the DOY-1 and DOY+1 files are located in the same place.
+        st_offset : time offset at which to begin the overlap
+        dh : window length in hours
+
+        """
+
+        # Get info about this file / date
+        finfo = self.parse_rinex_filename(input_file, to_numeric=True)
+        doy_prev = str(finfo['DOY'] - 1).zfill(3)
+        doy_next = str(finfo['DOY'] + 1).zfill(3)
+        doy = str(finfo['DOY']).zfill(3)
+        yr = finfo['yr']
+
+        # Construct the command line parameters
+        f_prev = os.path.join(, args.site, f'{site}{doy_prev}0.{yr}o')
+        f_next = os.path.join(DATA_PATH_RINEX_DAILY, args.site, f'{site}{doy_next}0.{yr}o')
+        f_out = os.path.join(DATA_PATH_RINEX_OVERLAP, args.site, f'{site}{doy}0.{yr}o')
+        epo_beg = str(finfo['year']) + doy + '_220000'
+        seconds = str(60 * 60 * 28)
+
+        # Construct the command
+        cmd = ( 
+            f'gfzrnx -finp  {f_prev} {f} {f_next} '
+            f'-fout {f_out} '
+            f'-epo_beg {epo_beg} -d {seconds}'
+        )
+        sout, serr = shellcmd(cmd)     
         
         
        

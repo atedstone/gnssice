@@ -4,27 +4,7 @@ This package provides functionality to kinematically process differential GNSS/G
 
 If this is your first time using this package to process GNSS data, suggest reading the HISLIDE data user guide before continuing further.
 
-## Installation of package
-
-Set up a conda or mamba environment:
-
-```bash
-conda create -n gnss pip
-conda activate gnss
-```
-
-If you haven't already got it, clone the gnssice repo, change into its directory then install in-place using pip (this will also install all dependencies):
-
-```bash
-pip install -e .
-```
-
-This means that it won't matter where you then do your main working, the scripts will always be accessible. *(Note: the command line interface uses entry points: see the full list in `setup.cfg`.)*
-
-**Important**: This installation allows you to process Level-1 to Level-2 only. For Level-0 to Level-1, several other dependencies are required -- see below for information.
-
-
-## Level-0 to Level-1 processing only: octopus.unil.ch quick-start
+## Sticky - Level-0 to Level-1 processing only: octopus.unil.ch quick-start
 
 Setup two terminals. Use the first terminal for processing. 
 
@@ -39,7 +19,7 @@ ssh [node]
 source gnss_process.sh
 ```
 
-Where gnss_process.sh contains lines similar to this:
+Where `gnss_process.sh` contains lines similar to this:
 
 ```bash
 # Python env
@@ -82,7 +62,13 @@ N.b. this quick-start assumes the following pre-requisites:
 
 ## Overview of workflow
 
-### Level-0 to Level-1 only:
+### Data levels
+
+- Level-0 : Refers to both raw binary data straight from the receivers (e.g. `*.ubx`) and RINEX files.
+- Level-1 : GEOD data which have been kinematically post-processed with TRACK.
+- Level-2 : Derived values, e.g. along- and across-track displacements.
+
+### Processing Level-0 to Level-1
 
 If you only want to process level-1 to level-2 then you can dis-regard these steps!
 
@@ -96,14 +82,7 @@ If you only want to process level-1 to level-2 then you can dis-regard these ste
     6a. Process 'temporary' fixes taken during redrilling/flights.
 8. `conc_daily_geod`: Concatenate daily TRACK GEOD files to year.
 
-### Level-1 to Level-2:
-
-9. `calculate_local_origin`: Only if this is a new site, to calculate local origin position. If this is an existing site then you should already have a file 'origin_<site>.csv' available.
-10. `gnss_disp_vel.py`: Preferentially run interactively/as notebook. Transform coordinates, filter data, convert to along/across-TRACK displacements, calculate velocities. Exclude periods of data based on the user-input exclusion file. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
-11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future. (rotation matrix, site origin)
-12. `seasonal_annual_disp.py` : To calculate seasonal and annual displacements.
-
-Full example using site **lev5**, 2021, days 129 to 242, without IONEX:
+Example using site **lev5**, 2021, days 129 to 242, without IONEX:
 
 ```bash
 # Prepare
@@ -127,6 +106,18 @@ process_dgps rusb lev5 2021 130 242
 
 # Post-process the batch of data you just processed.
 conc_daily_geod rusb lev5 2021 129 242
+```
+
+### Processing Level-1 to Level-2
+
+9. `calculate_local_origin`: Only if this is a new site, to calculate local origin position. If this is an existing site then you should already have a file 'origin_<site>.csv' available.
+10. `gnss_disp_vel.py`: Preferentially run interactively/as notebook. Transform coordinates, filter data, convert to along/across-TRACK displacements, calculate velocities. Exclude periods of data based on the user-input exclusion file. N.b. use of this script requires care depending on the length of baseline and the speed of the site, check the script for more details!
+11. Be sure to retain the post-processing ancillary files if they are to be used to process another batch of data from a site in the future. (rotation matrix, site origin)
+12. `seasonal_annual_disp.py` : To calculate seasonal and annual displacements.
+
+Continuing our example above: 
+
+```bash
 # Run next line only if no origin.csv file:
 calculate_local_origin lev5 lev5_rusb_2021_129_242_GEOD.parquet
 # Calculate velocities of this batch of data...
@@ -135,9 +126,54 @@ gnss_disp_vel.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
 gnss_disp_vel.py lev5  -f ...
 ```
 
+## Installation
+
+### The `gnssice` package
+
+Set up a conda or mamba environment:
+
+```bash
+conda create -n gnss pip
+conda activate gnss
+```
+
+If you haven't already got it, clone the gnssice repo, change into its directory then install in-place using pip (this will also install all dependencies):
+
+```bash
+pip install -e .
+```
+
+This means that it won't matter where you then do your main working, the scripts will always be accessible. *(Note: the command line interface uses entry points: see the full list in `setup.cfg`.)*
+
+**Important**: This installation allows you to process Level-1 to Level-2 only. For Level-0 to Level-1, several other dependencies are required -- see below for information.
+
+
+### Dependencies needed for Level-0 to Level-1 data
+
+#### TRACK
+
+We use TRACK, part of GAMIT/GLOBK: http://geoweb.mit.edu/gg/. Usage requires a license, which needs to be requested from MIT in the case that your Institution is not already a User. Users are provided with an access password for GLOBK/Gamit/TRACK downloads.
+
+You should check that the Gamit tables are sufficiently up to date for your captured GPS epochs. If they are not, update the GLOBK/Gamit installation following their instructions.
+
+
+#### RINEX utilities
+
+For the following, download the binaries relevant for your system and place them in your `bin`:
+
+- `gfzrnx`, the GFZ Potsdam RINEX toolbox: https://gnss.git-pages.gfz-potsdam.de/gfzrnx/welcome/. 
+- RINEX hatanaka compression tools: http://terras.gsi.go.jp/ja/crx2rnx.html
+- For older receivers (e.g. Leica 1200), we still rely on TEQC, even though this is discontinued since 2019. Download an executable suitable for your system from http://facility.unavco.org/software/teqc/.
+- For newer receivers (e.g. ublox), RTKLIB (https://www.rtklib.com/) is often suitable.  Download the latest source (https://github.com/tomojitakasu/RTKLIB) and then build the `convbin` utility (this package does not use any other RTKLIB utilities). For build instructions see Section 4 of the RTKLIB manual.
+
+
 ## Detailed Usage: Level-0 to Level-1
 
 ### Strategy for multi-year field campaigns
+
+Clean up as you go, otherwise you'll end up with loads of files, e.g. once the Leica files have been converted to rinex, delete the Leica files, and so on. The scripts do not clean up.
+
+Place the TRACK cmd file(s) needed for your processing in this workspace folder. (e.g. `TRACK_rusb.cmd`).
 
 This workflow treats data in batches.
 
@@ -175,39 +211,7 @@ However, if a different base station needs to be used for certain periods, there
 
 
 
-### Installation of dependencies
 
-More about GLOBK/Gamit: http://chandler.mit.edu/~simon/gtgk/script_help.htm
-
-More about TRACK: http://geoweb.mit.edu/~tah/TRACK_example/
-
-Access password for GLOBK/Gamit/TRACK downloads: check email / ask maintainers for access.
-
-You should check that the Gamit tables are sufficiently up to date for your captured GPS epochs. If they are not, update the GLOBK/Gamit installation following their instructions.
-
-The workflow also requires codes to convert raw receiver data files to RINEX, which should be installed to your `bin`:
-
-- For older receivers (e.g. Leica 1200), we still rely on TEQC, even though this is discontinued since 2019. Download an executable suitable for your system from http://facility.unavco.org/software/teqc/.
-- For newer receivers (e.g. ublox), RTKLIB (https://www.rtklib.com/) is often suitable.  Download the latest source (https://github.com/tomojitakasu/RTKLIB) and then build the `convbin` utility (this package does not use any other RTKLIB utilities). For build instructions see Section 4 of the RTKLIB manual.
-- *IMPORTANT*: As of Dec. 2024, Rinex processing is only implemented using TEQC! Modifications needed before ublox receivers can be processed.
-
-Install the `gnssice` package onto your working environment if you haven't already.
-
-Set up a working directory in your scratch space, e.g. `/scratch/<USER>/gps_workspace_<YEAR>/`. 
-
-Clean up as you go, otherwise you'll end up with loads of files, e.g. once the Leica files have been converted to rinex, delete the Leica files, and so on. The scripts do not clean up.
-
-	
-Place the TRACK cmd file(s) needed for your processing in this workspace folder. (e.g. `TRACK_rusb.cmd`).
-
-Files from Kellyville were sometimes in the compressed rinex format.
-If they are, you will also need RNXCMP and CRX2RNX, available at http://terras.gsi.go.jp/ja/crx2rnx.html.
-You need to install this to your home directory.
- 1. Download the tar.gz file.
- 2. uncompress the download: `tar -zxvf <filename>`
- 3. Put the files on your unix path. Either:
-     a. Copy the files from `<RNXCMPDirectory>/bin/` directly into `/home/<USER>/bin/`.
-	 b. Add the `<RNXCMPdirectory>/bin/` to your unix path.
 
 	 
 ### Note on gnss.py functionality
@@ -424,24 +428,35 @@ There are likely to be multiple temporary positions in one raw leica file, corre
 
 It's probably easiest to do this in a completely separate gps processing folder to avoid filename clashes. Also copy over the relevant base station and orbit files.
 
-First convert the leica file to rinex file(s) using process_rinex. Then window this rinex file into separate rinex files for each rover. Flight timings are very helpful here. You can first check the contents of the rinex file, for example using teqc:
+First convert the leica file to rinex file(s) using process_rinex. Then window this rinex file into separate rinex files for each rover. Flight timings are very helpful here. You can first check the contents of the rinex file, for example using teqc (only for RINEX2 files):
 
 ```bash
 teqc +qc rinex_file_name
 ```
+
+With RINEX3 files, use `gfzrnx` instead:
+```bash
+gfzrnx -finp <filename> -stk_epo <time_bin_in_seconds>
+```
+A good time bin is 1800 seconds, i.e. 30 minutes.
   
 Check satellite status for each site - if a site is only seeing 4 satellites for a period, or there are significant TRACKing problems, consider windowing out the poor data.  
 
 To do the windowing:
 
 ```bash
+# Either teqc (RINEX2 only)
 teqc -st hhmm00 +dm mm input_rinex_file > output_rinex_file
+# Or gfzrnx (RINEX2,3)
+gfzrnx -finp <filename> -epo_beg <begin> -d <seconds>
 ```
   
-N.b. -st by default assumes everything is in seconds, hence you have to specify the number of seconds to force it to understand hours and minutes. So e.g. to extract Lev6 temporary position from 2012 autumn file, begining at 12pm and continuing for 28 minutes:
+N.b. in TEQC, option -st by default assumes everything is in seconds, hence you have to specify the number of seconds to force it to understand hours and minutes. So e.g. to extract Lev6 temporary position from 2012 autumn file, begining at 12pm and continuing for 28 minutes:
 
 ```bash
-teqc -st 120000 +dm 28 levr_2430_ol_12o > lev6_<doy>0_ol.12o
+teqc -st 120000 +dm 28 levr2430.12o > lev62430.12o
+# Equivalent with gfzrnx:
+gfzrnx -finp levr2430.12o -epo_beg 2012243_120000 -d 1680 -fout lev62430.12o
 ```
 
 (Use the same filename format as proper rinex files so that TRACK knows what to look for.)
