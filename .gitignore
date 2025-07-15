@@ -137,6 +137,7 @@ dmypy.json
 
 # version file
 gnssice/version.py
+gnssice/_version.py
 
 # End of https://www.gitignore.io/api/python
 .DS_Store
