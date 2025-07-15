@@ -10,8 +10,52 @@ build-backend = "setuptools.build_meta"
 [project]
 name = 'gnssice'
 dynamic = ["version"]
+authors = ["Andrew Tedstone"]
+description = "Kinematic post-processing of GNSS data"
+keywords = ["GNSS"]
+readme= "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Natural Language :: English",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
+requires_python = ">=3.10,<3.14"
+dependencies = [
+    "geopandas>=0.12.0",
+    "matplotlib>=3",
+    "pandas>=1,<3",
+    "numpy>=1,<2",
+    "scipy>=1",
+    "pyarrow",
+    "statsmodels",
+    "click"
+]
+
+[project.urls]
+github = "https://github.com/atedstone/gnssice/"
+
+[project.scripts]
+calculate_local_origin = "gnssice.calculate_local_origin:cli"
+conc_daily_geod = "gnssice.conc_daily_geod:cli"
+get_ionex = "gnssice.get_ionex:cli"
+get_orbits = "gnssice.gnss:get_orbits"
+process_dgps = "gnssice.process_dgps:cli"
+process_rinex = "gnssice.process_rinex:cli"
+view_track_output = "gnssice.gnss:view_track_output"
+export_level1 = "gnssice.export_level1:cli"
+get_vmf3 = "gnssice.get_vmf3:main"
+splice_ionex = "gnssice.splice_ionex:main"
 
 # To write version to file
 [tool.setuptools_scm]
 version_file = "gnssice/_version.py"
 fallback_version = "0.0.1"
+
+[tool.setuptools.packages.find]
+include = 'gnssice'
