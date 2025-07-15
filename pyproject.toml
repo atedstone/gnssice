@@ -7,6 +7,9 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[project]
+dynamic = ["version"]
+
 # To write version to file
 [tool.setuptools_scm]
 version_file = "gnssice/_version.py"
