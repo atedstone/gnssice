@@ -4,6 +4,21 @@ This package provides functionality to kinematically process differential GNSS/G
 
 If this is your first time using this package to process GNSS data, suggest reading the HISLIDE data user guide before continuing further.
 
+## Sticky - main differences between Leica and GVT systems
+
+Leica:
+
+- GPS only, therefore IGS FINAL sp3 sufficient
+- RINEX2 sufficient, therefore TEQC still works
+
+GVT:
+
+- Multi-constellation, so need multi-c sp3 files
+- RINEX3 files, so need to use gfzrnx
+- Need to tell TRACK which signals to use (with obs_file)
+- Need to tell TRACK which constellations to use (with tr_gnss)
+
+
 ## Sticky - Level-0 to Level-1 processing only: octopus.unil.ch quick-start
 
 Setup two terminals. Use the first terminal for processing. 
@@ -248,8 +263,6 @@ Just copy and paste from the relevant files into the next, or on unix command li
 ```bash
 cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
 ```
-
-Also remember that the .sp3 naming scheme only contains the day of year as this is what TRACK understands - so if you're not careful when downloading from > 1 year you'll end up overwriting files. Best to only deal with one year's worth of data in scratch space at a time.
    
 
 #### Optional: Get 3rd party base RINEX files.
@@ -282,8 +295,6 @@ TRACK needs to be told about these files by adding the `IONEX_FILE` option in th
 ```bash
  IONEX_FILE ionex/igsg<day>0.<S09>i
 ``` 
-
-**Note that use of IONEX files is incompatible with overlapping daily RINEX files.**
 
 
 #### Update TRACK COMMAND file

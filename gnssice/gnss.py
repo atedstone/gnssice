@@ -21,8 +21,9 @@ See the README.
 HISTORY
 Created on Thu Feb 02 10:50:25 2012 
 2022-04: Upgrade to Py3. Some refactoring to Pandas.
+2025-07: Major upgrades to support Cryologger GVT/RINEX3.
 
-@author: Andrew Tedstone (andrew.tedstone@unifr.ch)
+@author: Andrew Tedstone (andrew.tedstone@unil.ch)
 
 """
 from __future__ import annotations
@@ -39,10 +40,37 @@ import pandas as pd
 import re
 import click
 from pathlib import Path
+from glob import glob
 
 INSTITUTION = 'PLACEHOLDER'
 OBSERVER = 'PLACEHOLDER'
 GVT_FW = 'v1.32' # GVT firmware version, to put in RINEX headers
+
+# Look-up table taken from sh_get_orbits
+ORBIT_PRODUCTS_TO_SP3_NAME = {
+   'igsf':'igs',
+   'igsr':'igr',
+   'igsu':'igu',
+   'codf':'cof',
+   'code':'cod',
+   'codm':'com',
+   'codr':'cor',
+   'emrf':'emr',
+   'esaf':'esa',
+   'gfzf':'gfz',
+   'gfzm':'gbm',
+   'grgm':'grm',
+   'jaxm':'jam',
+   'jplf':'jpl',
+   'mitf':'mit',
+   'mitm':'mim',
+   'ngsf':'ngs',
+   'siof':'sio',
+   'sior':'sir',
+   'siou':'siu',
+   'tumm':'tum',
+   'wuhm':'wum'
+}
 
 def shellcmd(cmd, timeout_seconds=False, retry_n=2):
     """A general wrapper to the Popen command, running through the shell.
@@ -156,32 +184,75 @@ def confirm(prompt=None, resp=False):
         if ans.lower() == 'n':
             return False    
 
+def gpsweekD(yr, doy, wkday_suff=False):
+    """
+    Convert year, day-of-year to GPS week format: WWWWD or WWWW
+
+    Verbatim from https://github.com/GeoscienceAustralia/gnssanalysis/gnssanalysis/gn_datetime.py
+    Which is based on code from Kristine Larson's gps.py
+    https://github.com/kristinemlarson/gnssIR_python/gps.py
+
+    Input:
+    yr - year (int)
+    doy - day-of-year (int)
+    wkday_suff : If True, return WWWWD, otherwise WWWW
+
+    Output:
+    GPS Week in WWWWD format - weeks since 7 Jan 1980 + day of week number (str)
+    """
+
+    # Set up the date and time variables
+    yr = int(yr)
+    doy = int(doy)
+    d = datetime.strptime(f"{yr}-{doy:03d} 01", "%Y-%j %H")
+
+    wkday = d.weekday() + 1
+
+    if wkday == 7:
+        wkday = 0
+
+    mn, dy, hr = d.month, d.day, d.hour
+
+    if mn <= 2:
+        yr = yr - 1
+        mn = mn + 12
+
+    JD = np.floor(365.25 * yr) + np.floor(30.6001 * (mn + 1)) + dy + hr / 24.0 + 1720981.5
+    GPS_wk = int(np.floor((JD - 2444244.5) / 7.0))
+
+    if wkday_suff:
+        return str(GPS_wk) + str(wkday)
+    else:
+        return str(GPS_wk)
 
 @click.command()
 @click.argument('year')
 @click.argument('start_doy')
 @click.argument('end_doy')
+@click.option('--orbit', default='codm')
 @click.option('--overlap', default=False)
-@click.option('--noclearup', default=False)
+@click.option('--clearup', default=True)
 @click.option('--rename', default=False, help='if True, then year signifier will be removed from filename.')
-def get_orbits(year, start_doy, end_doy, 
-    overlap=False,
-    noclearup=False,
-    rename=False):
-    """Download daily IGS sp3 orbit files and overlap them.
+def get_orbits(
+    year: int, 
+    start_doy: int, 
+    end_doy: int, 
+    orbit: str='codm',
+    download=True,
+    overlap: bool=False,
+    clearup: bool=True
+    ) -> None:
+    """Download daily sp3 orbit files and optionally overlap them.
     
     Each resulting overlapped file contains the previous day, the current
-    day, and the next day.
+    day, and the next day. (Except for 1 Jan or 31 Dec).
     
     Do not try to download orbits spanning two years - only run on a 
     per-yearly basis.
     
-    If clearup=True, the un-overlapped files will be deleted afterwards and
-    overlapped files moved into the main directory. Otherwise, they will
-    remain in cat_sp3/.
+    If clearup=True, the un-overlapped files will be deleted afterwards.
 
-    If rename=True, files will have the year signifier removed from their
-    filename.
+    Files get renamed to OOOYYDDD0.sp3, where OOO=orbit SP3 name, YY=year, DDD=julian day of year.
 
     """
     start_doy = int(start_doy)
@@ -190,64 +261,63 @@ def get_orbits(year, start_doy, end_doy,
     if n_days < 0:
         print("It looks like you've entered the number of days to download, not the end day. You need to specify the end day. Exiting...")
         return
-    shellcmd("mkdir sp3_dl")
-    cmd = "cd sp3_dl ; sh_get_orbits -orbit igsf -yr " + str(year) + " -doy " + \
-        str(start_doy) + " -ndays " + str(n_days) + " -nofit"
-    print(cmd)
-    status = shellcmd(cmd)
-    print(status['stdout'])
-    print(status['stderr'])
-    
-    status = shellcmd("ls sp3_dl/*.sp3")
-    
+    Path(os.environ['GNSS_PATH_SP3_DAILY']).mkdir(exist_ok=True)
 
-    files = status['stdout'].split("\n")
-    shellcmd("mkdir cat_sp3")   
+    def make_target_fn(orbit, year, doy):
+        """ Generate the filename format needed for our work flow. """
+        return '{o}{y}{d}0.sp3'.format(
+            o=ORBIT_PRODUCTS_TO_SP3_NAME[orbit],
+            y=str(year)[:-2],
+            d=str(doy).zfill(3)
+        )
 
+    if download:
+        print('Downloading...')
+        shellcmd("cd " + os.environ['GNSS_PATH_SP3_DAILY'] )
+        cmd = f"sh_get_orbits -orbit {orbit} -yr " + str(year) + " -doy " + \
+            str(start_doy) + " -ndays " + str(n_days) + " -nofit"
+        print(cmd)
+        status = shellcmd(cmd)
+        print(status['stdout'])
+        print(status['stderr'])
+        shellcmd('cd ..')
+
+        print('Renaming...')
+        for doy in range(start_doy, end_doy+1):
+            old_fn = '{o}{wd}.sp3'.format(
+                o=ORBIT_PRODUCTS_TO_SP3_NAME[orbit],
+                wd=gpsweekD(year, doy, wkday_suff=True)
+            )
+            target_fn = make_target_fn(orbit, year, doy)
+            os.rename(
+                os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], old_fn),
+                os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], target_fn) 
+            )
+    
     if overlap:
-        ol_suffix = '_ol'
-    else:
-        ol_suffix = ''
+        print('Overlapping...')
+        Path(os.environ['GNSS_PATH_SP3_OVERLAP']).mkdir(exist_ok=True)
     
-    doy = start_doy
-    for prev,item,nex in neighborhood(files):
-        if prev == None:
-            prev = ""
-        if nex == None:
-            nex = ""
-        if item == "":
-            break
-        if rename:
-            newfn = "cat_sp3/igs" + str(doy).zfill(3) + ol_suffix + ".sp3"
-        else:
-            yr = int(year) % 1000
-            newfn = "cat_sp3/igs" + str(yr) + str(doy).zfill(3) + ol_suffix + ".sp3"
-        try:
-            fn = open(newfn)
-            fn.close()
-            print("File for doy " + str(doy) + "already exists, skipping")
-            continue
-        except IOError:
-            if overlap:
-                cmd = "cat " + prev + " " + item + " " + nex + \
-                " > " + newfn
-                print(cmd)
-                shellcmd(cmd)  
-            else:
-                cmd = "mv {old} {new}".format(old=item, new=newfn)
-                print(cmd)
-                shellcmd(cmd)
-        doy = doy + 1
-    
-    if not noclearup:
+        for doy in range(start_doy, end_doy+1):
+            tday_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy))
+            yday_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy-1))
+            tomo_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy+1))
+
+            out_fn = os.path.join(os.environ['GNSS_PATH_SP3_OVERLAP'], make_target_fn(orbit, year, doy))
+
+            cmd = 'cat {prev} {today} {tomo} > {fn}'.format(
+                prev=yday_fn,
+                today=tday_fn,
+                tomo=tomo_fn,
+                fn=out_fn
+            )
+            sout, serr = shellcmd(cmd)
+            if serr is not None:
+                raise IOError(serr)
+        
+    if clearup:
         print("Clearing up...")
-        shellcmd("rm -r sp3_dl")
-        shellcmd("mv cat_sp3/* .")
-        shellcmd("rm -r cat_sp3")
-
-
-        shellcmd("mv sp3_dl/* .")
-        shellcmd("rm -r sp3_dl")
+        shellcmd("rm {1}/*.sp3".format(os.environ['GNSS_PATH_SP3_DAILY']))
     
     print("Done.")
 
@@ -363,8 +433,8 @@ class RinexConvert:
         self.institution = INSTITUTION
         self.observer = OBSERVER
 
-    def parse_rinex_filename(fn, to_numeric=False):
-        """ Extract and return elements of a RINEX file name 
+    def parse_rinex2_filename(fn, to_numeric=False):
+        """ Extract and return elements of a RINEXv2 file name 
 
         to_numeric : bool. If True, parse DOY as integer.
         returns : dict {site, DOY, yr (2-charac), year (YYYY)}
@@ -604,7 +674,7 @@ class RinexConvert:
         """
 
         # Get info about this file / date
-        finfo = self.parse_rinex_filename(input_file, to_numeric=True)
+        finfo = self.parse_rinex2_filename(input_file, to_numeric=True)
         doy_prev = str(finfo['DOY'] - 1).zfill(3)
         doy_next = str(finfo['DOY'] + 1).zfill(3)
         doy = str(finfo['DOY']).zfill(3)
@@ -694,7 +764,7 @@ class Kinematic:
         logging.basicConfig(filename=lfn,level=logging.INFO,format='%(message)s')
         logging.info("\n\n" + datetime.datetime.now().strftime("%Y-%m-%d %I:%M:%S %p") +
         ": BEGINNING NEW PROCESSING BATCH")
-        logging.info("Start: day " + str(doy_start) + ", End: day " + \
+        logging.info("Year: " + str(year) + ". Start: day " + str(doy_start) + ", End: day " + \
         str(doy_end) + ", Base/Static: " + base)
 
         yr_short = year % 1000
@@ -740,11 +810,11 @@ class Kinematic:
                 exclude_svs = ''                
                 if retry == True:
                     print("Reprocessing day...enter new values or press Return to use Default.")
-                    ion_stats = input("    Ion Stats: ")
+                    ion_stats = input("    @ion_stats <jump>: ")
                     if len(ion_stats) == 0: ion_stats = self.ion_stats
-                    MW_WL = input("    MW_WL Weighting: ")
+                    MW_WL = input("    @float_type <WL_Fact> (MW_WL weighting): ")
                     if len(MW_WL) == 0: MW_WL = self.MW_WL
-                    LG = input("    LG Combination Weighting: ")
+                    LG = input("    @float_type <Ion_fact> (LG Combination Weighting): ")
                     if len(LG) == 0: LG = self.LG
                     print("Processing with new parameter values...")
                 else:
