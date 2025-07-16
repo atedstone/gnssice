@@ -1,7 +1,7 @@
 # Example/template for GNSSICE environment variables
 # Suggest copying to home directory and then modifying to your system.
 
-export GNSS_WORK='/work/atedstone/gnss_example/'
+export GNSS_WORK='/work/atedstone/gnss_example_TEST/'
 
 # Level 0 to Level 1 processing (only)
 export GNSS_PATH_RAWDATA=${GNSS_WORK}raw
