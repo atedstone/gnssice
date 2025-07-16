@@ -40,9 +40,9 @@ def cli():
     parser.add_argument('site', type=str, help='Site to process')
     parser.add_argument('file_type', type=str,
         help=("""
-            File type: one of 
+            Input file type: one of 
             - G  : CryoLogger GVT daily UBX files
-            - R  : daily RINEX files
+            - R  : daily RINEX files (located in $GNSS_PATH_RINEX_DAILY directory; only overlapping is possible)
             - LS : single Leica MDB (M0x) file 
             - LD : daily Leica MDB files'
         """)

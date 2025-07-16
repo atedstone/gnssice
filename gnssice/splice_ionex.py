@@ -2,12 +2,15 @@
 """
 Create IONEX files which span day boundaries, for use in TRACK.
 
-Andrew Tedstone, July 2025. Written using ChatGPT.
+Requires env variables for IONEX locations to be available.
+
+Andrew Tedstone, July 2025. Partially written using ChatGPT.
 """
 
 import argparse
 from datetime import datetime, timedelta
 from pathlib import Path
+import os
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -23,7 +26,9 @@ def get_julian_day(dt):
 def get_ionex_filename(dt):
     ddd = get_julian_day(dt)
     yy = dt.strftime('%y')
-    return f"igsg{ddd:03d}0.{yy}i"
+    f = f"igsg{ddd:03d}0.{yy}i"
+    pth = os.path.join(os.environ['GNSS_PATH_IONEX_DAILY'], f)
+    return pth
 
 def read_ionex_file(path):
     with open(path, 'r') as f:
@@ -180,7 +185,8 @@ def main():
     )
 
     out_filename = f"igsg{get_julian_day(target_date):03d}0_ol.{target_date.strftime('%y')}i"
-    write_ionex_file(out_filename, updated_header, tec_maps, rms_maps)
+    out_pth = os.path.join(os.environ['GNSS_PATH_IONEX_OVERLAP'], out_filename)
+    write_ionex_file(out_pth, updated_header, tec_maps, rms_maps)
 
     print(f"Output written to: {out_filename}")
 

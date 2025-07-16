@@ -1,4 +1,5 @@
-# gnss.sh
+# Example/template for GNSSICE environment variables
+# Suggest copying to home directory and then modifying to your system.
 
 export GNSS_WORK='/work/atedstone/gnss_example/'
 

@@ -41,6 +41,7 @@ import re
 import click
 from pathlib import Path
 from glob import glob
+import shutil
 
 INSTITUTION = 'PLACEHOLDER'
 OBSERVER = 'PLACEHOLDER'
@@ -70,6 +71,14 @@ ORBIT_PRODUCTS_TO_SP3_NAME = {
    'siou':'siu',
    'tumm':'tum',
    'wuhm':'wum'
+}
+
+# Look-up table of receivers to TRACK command filename labels
+# Key: the name of the receiver encoded in the RINEX header block
+# Value: the rcvr ID to substitute into track_<base>_<rcvr>.cmd.
+TRACK_CMD_RCVR = {
+    'LEICA GX1220+':'L1200',
+    'CryoLogger GVT':'gvt'
 }
 
 def shellcmd(cmd, timeout_seconds=False, retry_n=2):
@@ -280,7 +289,7 @@ def get_orbits(
         status = shellcmd(cmd)
         print(status['stdout'])
         print(status['stderr'])
-        shellcmd('cd ..')
+        shellcmd('cd ' + os.environ['GNSS_WORK'])
 
         print('Renaming...')
         for doy in range(start_doy, end_doy+1):
@@ -716,10 +725,13 @@ class Kinematic:
         """Wrapper to track kinematic processing.
         
         Processing takes one of two slightly different approaches. With 
-        use_auto_qa=True, each day of data will be tested for linearity in 
-        East versus North using Spearman correlation. If the result of the test
-        is > spearman_threshold, the day is accepted automatically and 
-        processing moves on to the next day with no interaction necessary. 
+        use_auto_qa=True, each day of data will be checked according to one of two
+        methods:
+        (1) linearity in East versus North using Spearman correlation. If the result of the test
+        is > spearman_threshold, the day is accepted automatically. 
+        (2) Median RMS from TRACK below rms_threshold.
+         
+        If the test passes then processing moves on to the next day with no interaction necessary. 
         If the day fails the test, the user must choose the next step to take.
         
         If use_auto_qa=False, the user must approve every day processed manually.
@@ -751,13 +763,17 @@ class Kinematic:
               data will be saved but will not be displayed on screen, even 
               if show_plot=True.
            spearman_threshold: the value that the spearman coefficient must 
-              exceed for the day to be approved automatically.
+              exceed for the day to be approved automatically. Pass None to disable.
             rms_threshold: value in mm that median RMS must not exceed for day to
-            be approved automatically.
+            be approved automatically. Pass None to disable.
         Outputs:
             None.
             
         """
+
+        # Check we are in GNSS working directory
+        if os.getcwd() != os.environ['GNSS_WORK']:
+            raise RuntimeError('Your current working directory does not match GNSS_WORK.')
                 
         # Set up logging. 
         lfn = "gps.track." + rover + ".log"
@@ -768,7 +784,22 @@ class Kinematic:
         str(doy_end) + ", Base/Static: " + base)
 
         yr_short = year % 1000
-        
+
+        # Identify rover receiver type from RINEX
+        fpth = os.path.join(os.environ['GNSS_WORK'], 'rinex', rover, f'{rover}{doy_start}0.{yr_short}o')
+        rcv_type, serr = shellcmd(f"grep -E 'REC # / TYPE / VERS' {fpth} | awk '{print $2, $3}'")
+        rcvr = TRACK_CMD_RCVR[rcv_type]
+
+        # Now build TRACK cmd filename
+        cmdfile = os.path.join(os.environ['GNSS_WORK'], self.config_subfolder, f'track_{base}_{rover}_{rcvr}.cmd')
+        # Check it is exists before we go any further
+        if not os.path.exists(cmdfile):
+            raise IOError(f'Track CMD file {cmdf} not found.')
+
+        # Set up output directory
+        output_dir = os.path.join(os.environ['GNSS_PATH_TRACK_OUT'], rover)
+        Path(output_dir).mkdir(exist_ok=True)
+
         # Enter main processing loop, works on a per-day basis
         for doy in range(doy_start,doy_end):
 
@@ -826,7 +857,7 @@ class Kinematic:
                 outf = rover + "_" + base + "_" + str(year) + "_" + str(doy).zfill(3) + ".out"
                 
                 cmd = 'track -f {cf} -d {d} -s {ap} {mw} {lg} {istat} {base} {rover} {yr} > {out}'.format(
-                    cf=os.path.join(self.config_subfolder, 'track_%s.cmd' %base),
+                    cf=cmdfile,
                     d=save_opts['d'],
                     ap=apriori,
                     mw=MW_WL,
@@ -968,15 +999,26 @@ class Kinematic:
             
             if track_error == False:
                 print("Saving these results.")
-                # Ensure the directory is available.
-                if os.path.isdir('processed') == False:
-                    print("Making processed/ subdirectory.")
-                    shellcmd("mkdir processed")
-                # Move and rename NEU, GEOD results
-                shellcmd("cp track.{ftype}.{r}.LC processed/{r}_{b}_{y}_{d}_{ftype}.dat".format(ftype='NEU', **save_opts))
-                shellcmd("cp track.{ftype}.{r}.LC processed/{r}_{b}_{y}_{d}_{ftype}.dat".format(ftype='GEOD', **save_opts))
-                # Move figure file of results
-                shellcmd("mv {f} processed/".format(f=save_plot_to))
+                # NEU
+                os.rename(
+                    'track.NEU.{1}.LC'.format(rover), 
+                    os.path.join(output_dir, '{r}_{b}_{y}_{d}_NEU.dat'.format(**save_opts))
+                    )
+                # GEOD (we copy rather than move this as the .LC file is still needed for extracting APR coordinates)
+                shutil.copy(
+                    'track.GEOD.{1}.LC'.format(rover), 
+                    os.path.join(output_dir, '{r}_{b}_{y}_{d}_GEOD.dat'.format(**save_opts))
+                    )
+                # Plot of results
+                os.rename(
+                    save_plot_to, 
+                    os.path.join(output_dir, save_plot_to)
+                    )
+                # Track OUT file
+                os.rename(
+                    '{r}_{b}_{y}_{d}.out'.format(**save_opts), 
+                    os.path.join(output_dir, '{r}_{b}_{y}_{d}.out'.format(**save_opts))
+                    )
             
         print("Batch finished.")
     
