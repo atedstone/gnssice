@@ -184,7 +184,8 @@ def main():
         curr_header, run_date, first_epoch, last_epoch, ddd_range, year, num_tec_maps
     )
 
-    out_filename = f"igsg{get_julian_day(target_date):03d}0_ol.{target_date.strftime('%y')}i"
+    Path(os.environ['GNSS_PATH_IONEX_OVERLAP']).mkdir(exist_ok=True)
+    out_filename = f"igsg{get_julian_day(target_date):03d}0.{target_date.strftime('%y')}i"
     out_pth = os.path.join(os.environ['GNSS_PATH_IONEX_OVERLAP'], out_filename)
     write_ionex_file(out_pth, updated_header, tec_maps, rms_maps)
 

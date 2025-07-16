@@ -41,16 +41,18 @@ dependencies = [
 github = "https://github.com/atedstone/gnssice/"
 
 [project.scripts]
-calculate_local_origin = "gnssice.calculate_local_origin:cli"
-conc_daily_geod = "gnssice.conc_daily_geod:cli"
-get_ionex = "gnssice.get_ionex:cli"
-get_orbits = "gnssice.gnss:get_orbits"
-process_dgps = "gnssice.process_dgps:cli"
-process_rinex = "gnssice.process_rinex:cli"
-view_track_output = "gnssice.gnss:view_track_output"
-export_level1 = "gnssice.export_level1:cli"
+setup_wd = "gnssice.setup_wd:cli"
 get_vmf3 = "gnssice.get_vmf3:main"
+get_orbits = "gnssice.gnss:get_orbits"
+get_ionex = "gnssice.gnss:get_ionex"
 splice_ionex = "gnssice.splice_ionex:main"
+process_rinex = "gnssice.process_rinex:cli"
+process_dgps = "gnssice.process_dgps:cli"
+view_track_output = "gnssice.gnss:view_track_output"
+conc_daily_geod = "gnssice.conc_daily_geod:cli"
+export_level1 = "gnssice.export_level1:cli"
+calculate_local_origin = "gnssice.calculate_local_origin:cli"
+
 
 # To write version to file
 [tool.setuptools_scm]
@@ -58,4 +60,5 @@ version_file = "gnssice/_version.py"
 fallback_version = "0.0.1"
 
 [tool.setuptools.packages.find]
-where = ["gnssice"]
+#where = ["gnssice"]
+include = ["gnssice"]
