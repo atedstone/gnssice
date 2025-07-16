@@ -17,85 +17,84 @@ import os
 from gnssice import gnss
 rinex = gnss.RinexConvert()
 
+def print_header(text):
+    print('-------------------------------------------------------------------')
+    print(f'\t {text}')
+    print('-------------------------------------------------------------------')
+
 def cli():
 
-    parser = argparse.ArgumentParser('Windowed RINEX file creation')
+    if os.environ['GNSS_PATH_RAWDATA'] is None:
+        raise ValueError('Environment variable GNSS_PATH_RAWDATA not found. Have you set up your environment?')
+
+    parser = argparse.ArgumentParser("""
+        Windowed RINEX file creation.
+        -----------------------------
+        Generate daily RINEX files from binary receiver formats.
+        Optionally, produce overlapping RINEX files.
+
+        When called with type F, LS, LD, this script always outputs daily RINEX files.
+        """
+    )
 
     parser.add_argument('site', type=str, help='Site to process')
-    parser.add_argument('-filename', type=str, help='Filename to process, needed if single Leica file.')
-    parser.add_argument('file_type', type=str, help='File type: one of [g] CryoLogger GVT daily UBX files, [s]ingle Leica file, [r]inex daily files e.g. Kellyville from SOPAC, [d]aily Leica files')
-
-    parser.add_argument('-start', 
-        type=lambda s: dt.datetime.strptime(s, '%Y-%m-%d'),
-        help='For Leica single files, day to begin processing, yyyy-mm-dd'
-    )
-    parser.add_argument('-finish', 
-        type=lambda s: dt.datetime.strptime(s, '%Y-%m-%d'),
-        help='For Leica single files, day to finish processing, yyyy-mm-dd'
+    parser.add_argument('file_type', type=str,
+        help=("""
+            File type: one of 
+            - G  : CryoLogger GVT daily UBX files
+            - R  : daily RINEX files
+            - LS : single Leica MDB (M0x) file 
+            - LD : daily Leica MDB files'
+        """)
     )
 
     parser.add_argument('-overlap', action='store_true', 
         help='Produce overlapping RINEX files beginning at -22:00:00 and extending 28 hours.')
 
+    parser.add_argument('-filename', type=str, help='For Leica single files (LS) only: filename to process in DATA_PATH_BINARY/<site>/.')
+    parser.add_argument('-start', 
+        type=lambda s: dt.datetime.strptime(s, '%Y-%m-%d'),
+        help='For Leica single files (LS) only: day to begin processing, yyyy-mm-dd'
+    )
+    parser.add_argument('-finish', 
+        type=lambda s: dt.datetime.strptime(s, '%Y-%m-%d'),
+        help='For Leica single files (LS) only: day to finish processing, yyyy-mm-dd'
+    )
+
     args = parser.parse_args()
     rinex.observer = os.environ['GNSS_RINEX_OBSERVER']
     rinex.institution = os.environ['GNSS_RINEX_INSTITUTION']
 
-    print ("----------------------------\nWindowed rinex file creation\n----------------------------")
+    print_header('Windowed RINEX file creation')
     print ("Observer set as '" + rinex.observer + "'. Change in your env variables if this is not correct!")
-     
-    if args.overlap:
-        start_at = '-22:00:00'
-        window = 28
-    else:
-        start_at = '00:00:00'
-        window = 24
 
-    if args.overlap:
-        rinex_files = glob(os.path.join(os.environ['DATA_PATH_RINEX_DAILY'], args.site, '*'))
-        for f in rinex_files:
-            pass
-
-
-
-    # CryoLogger GVT / u-blox files:
-    if args.file_type == 'g':
+    # CryoLogger GVT / u-blox files UBX to RINEX:
+    if args.file_type == 'G':
+        print_header('Converting GVT --> RINEX')
         # First convert to RINEX
-        ubx_files = glob(os.path.join(os.environ['DATA_PATH_BINARY'], args.site, '*.ubx'))
+        scan_path = os.path.join(os.environ['GNSS_PATH_RAWDATA'], args.site, '*.ubx')
+        print(f'Scanning {scan_path}')
+        ubx_files = glob(scan_path)
         print('Found {n} files...'.format(n=len(ubx_files)))
         for f in ubx_files:
-            sout, serr = rinex.gvt_to_rinex(f, args.site, os.path.join(os.environ['DATA_PATH_RINEX_DAILY'], args.site))
+            sout, serr = rinex.gvt_to_rinex(f, args.site, os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site))
             if serr is not None:
                 print(serr)
-                raise IOError  
-    
-    # Single Leica File (e.g. L1200 systems):                     
-    elif args.file_type == 's':
-        rinex.leica_to_daily_rinex(args.filename,
+                raise IOError
+        print('Finished.')
+
+    # Single Leica File MDB to RINEX (e.g. L1200 systems):                     
+    elif args.file_type == 'LS':
+        print_header('Converting Leica MDB --> RINEX')
+        pth = os.path.join(os.environ['GNSS_PATH_RAWDATA'], args.site, args.filename)
+        rinex.leica_to_daily_rinex(pth,
                              site=args.site,
                              start_date=args.start, end_date=args.finish)
 
+    # Daily Leica files MDB to RINEX (e.g. L500 systems):
+    elif args.file_type == 'LD':
 
-    # Overlapping of daily Rinex files:
-    elif args.file_type == 'r':
-        # First need to concatenate files
-        y = input("Enter the rinex year suffix (e.g. 11 for 2011): ")
-        fn = "all_" + args.site + "." + str(y) + "o"
-        print ("File will be saved to " + fn)
-        cmd = "teqc " + args.site + "*." + str(y) + "o > " + fn
-        status = gnss.shellcmd(cmd)
-        print (status['stdout'])
-        print (status['stderr'])
-        
-        print ("Starting window overlap.")
-        rinex.window_overlap(fn, start_at, window) 
-        print ("Finished.")
-
-
-    # Daily Leica files (old L500 systems only):
-    elif args.file_type == 'd':
-
-        print('This option is out-of-date and has been disabled.')
+        print_header('Leica daily files: This option is out-of-date and has been DISABLED.')
         sys.exit()
 
         prefix = input("Enter the daily file series prefix (the bit before the .):")
@@ -110,6 +109,23 @@ def cli():
             rinex.window_overlap(fn, start_at, window) 
         print("Finished.")
 
+    elif args.file_type == 'R':
+        print_header('RINEX files option')
+
+    # Invalid option
     else: 
         print ("Invalid option specified, exiting.")
         sys.exit()
+
+    # Now do overlapping, always from daily RINEX files (never from any other type of file)
+    if args.overlap:
+        print_header('Commence window overlaps')
+   
+        rinex_files = glob(os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site, '*'))
+        print('Found {n} files...'.format(n=len(rinex_files)))
+        for f in rinex_files:
+            rinex.window_overlap(f, st_timestart='220000', dh=28)
+        print('Finished.')
+
+    if (not args.overlap) and (args.file_type == 'R'):
+        print('You specified RINEX files but did not ask them to be overlapped. There is no work to do.')

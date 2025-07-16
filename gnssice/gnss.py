@@ -541,7 +541,7 @@ class RinexConvert:
             Supply dates as datetimes.
             
         E.g. Process from a raw leica file:
-            window_overlap("leica-file.m00","0",24,
+            leica_to_daily_rinex("leica-file.m00","0",24,
                                  site="levb", 
                                  start_date=dt.datetime(...),end_date=dt.datetime(...))
 
@@ -592,13 +592,13 @@ class RinexConvert:
     def window_overlap(
         self, 
         input_file : str,
-        st_offset : str='00:00:00', 
+        st_timestart : str='000000', 
         dh : int=24
         ):
         """ Make daily RINEX file with overlapping window into the preceding and subsequent days.
 
         input_file : str with RINEX2 filename. This function assumes that the DOY-1 and DOY+1 files are located in the same place.
-        st_offset : time offset at which to begin the overlap
+        st_timestart : time at which to begin the overlap, following syntax allowed by gfzrnx.
         dh : window length in hours
 
         """
@@ -612,10 +612,10 @@ class RinexConvert:
 
         # Construct the command line parameters
         f_prev = os.path.join(, args.site, f'{site}{doy_prev}0.{yr}o')
-        f_next = os.path.join(DATA_PATH_RINEX_DAILY, args.site, f'{site}{doy_next}0.{yr}o')
-        f_out = os.path.join(DATA_PATH_RINEX_OVERLAP, args.site, f'{site}{doy}0.{yr}o')
-        epo_beg = str(finfo['year']) + doy + '_220000'
-        seconds = str(60 * 60 * 28)
+        f_next = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site, f'{site}{doy_next}0.{yr}o')
+        f_out = os.path.join(os.environ['DATA_PATH_RINEX_OVERLAP'], args.site, f'{site}{doy}0.{yr}o')
+        epo_beg = str(finfo['year']) + doy + '_' + st_timestart
+        seconds = str(60 * 60 * dh)
 
         # Construct the command
         cmd = ( 
@@ -624,6 +624,7 @@ class RinexConvert:
             f'-epo_beg {epo_beg} -d {seconds}'
         )
         sout, serr = shellcmd(cmd)     
+        return(sout, serr)
         
         
        

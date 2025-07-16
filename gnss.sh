@@ -1,6 +1,6 @@
 # gnss.sh
 
-export GNSS_WORK='/scratch/hislide-processing/'
+export GNSS_WORK='/work/atedstone/gnss_example/'
 
 # Level 0 to Level 1 processing (only)
 export GNSS_PATH_RINEX_DAILY=${GNSS_WORK}rinex_daily
@@ -11,5 +11,5 @@ export GNSS_RINEX_OBSERVER='SNF FlowState'
 export GNSS_RINEX_INSTITUTION='University of Lausanne'
 
 # Level 1 and Level 2 final output locations
-export GNSS_L1DIR='/scratch/hislide-level1/'
-export GNSS_L2DIR='/scratch/hislide-level2/'
+export GNSS_L1DIR='/work/atedstone/flowstate-gnss-level1/'
+export GNSS_L2DIR='/work/atedstone/flowstate-gnss-level2/'
