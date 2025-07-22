@@ -13,6 +13,7 @@ import pandas as pd
 from scipy.signal import filtfilt
 from pandas.tseries.frequencies import to_offset
 import matplotlib.pyplot as plt
+import collections.abc
 
 from gnssice import gnss
 from gnssice.gaussfiltcoef import gaussfiltcoef
@@ -409,10 +410,31 @@ def detrend_z(
     return (z_detr, slope)
 
 
+def calculate_uncertainty(
+    x : float | pd.Series,
+    velocity : float | pd.Series, 
+    epoch_uncertainty: float=0.01
+    ) -> pd.Series:
+    """ Calculate the uncertainty in the velocity over the given time period.
+
+    :param x: Series of displacements, or float displacement
+    :param velocity: Series of velocities, with timestamps matching x, or float velocity
+    :param epoch_uncertainty: the 1-epoch positional uncertainty.
+    :returns: pd.Series
+
+    For reference, see also Lokkegaard et al. (2024, Nat.Comms. Earth & Env.).
+    """
+    if isinstance(x, (collections.abc.Sequence, pd.Series, pd.DataFrame)):
+        x = x.diff(1)
+    return (np.sqrt(epoch_uncertainty**2 + epoch_uncertainty**2) / np.abs(x)) * velocity
+
+
 def calculate_daily_velocities(
     x : pd.Series,
+    method : str='epoch',
     tz : str=None,
-    flag_iterp : pd.Series=None
+    flag_iterp : pd.Series=None,
+    calc_uncertainty : bool=True
     ) -> pd.Series:
     """
     Calculate 24-h along-track velocity using average position in first hour of each day.
@@ -422,19 +444,33 @@ def calculate_daily_velocities(
     timezone before calculating the velocities.
 
     :param x: Series of along-track displacement from which to calculate velocity.
+    :param method: str, either 'epoch' to difference between epochs separated by 24 h, 
+    or 'average' to difference the mean position in the first hour of each day.
     :param tz: A 'tz-database' time zone string, e.g. America/Nuuk.
     """
     if tz is not None and tz != '':
         x = x.tz_localize(tz)
 
-    v_24h = x.resample('24h').apply(lambda x: x[x.index.hour == 0].mean())
-    v_24h = (v_24h.shift(1) - v_24h) * YEAR_LENGTH_DAYS
+    if method == 'epoch':
+        x = x.resample('24h').first()
+    elif method == 'average':
+        x = x.resample('24h').apply(lambda x: x[x.index.hour == 0].mean())
+    else:
+        raise ValueError('Unknown option provided for `method`.')
+    
+    v_24h = (x.shift(1) - x) * YEAR_LENGTH_DAYS
 
     if flag_iterp is not None:
         if tz is not None and tz != '':
             flag_iterp = flag_iterp.tz_localize(tz)
             f = flag_iterp.resample('D').first()
             return pd.concat([v_24h, f], axis='columns')
+
+    if calc_uncertainty:
+        v_24h.name = 'v_24h_myr'
+        unc = calculate_uncertainty(x, v_24h)
+        v_24h = v_24h.to_frame()
+        v_24h['unc_myr'] = unc
 
     return v_24h
    

@@ -18,6 +18,8 @@ sns.set_style('whitegrid')
 import argparse
 import os
 from glob import glob
+from pathlib import Path
+from gnssice import pp
 
 
 def load_multiple_xyz(files):
@@ -29,7 +31,7 @@ def load_multiple_xyz(files):
 
 def make_contiguous(df):
     # Coarsen the time series and interpolate over any gaps.
-    xyzi = xyz.resample('1h').median()
+    xyzi = xyz.resample('1h').first()
     original = xyzi.x.notna() 
     xyzi = xyzi.interpolate()
     xyzi['original'] = original
@@ -92,17 +94,26 @@ def find_nearest_occupation(df, datetime):
     iloc_idx = df.index.get_indexer([datetime], method='nearest')  
     # Get the named index
     loc_idx = df.index[iloc_idx]                    
-    return loc_idx
+    return loc_idx[0]
 
 
-def calculate_disps(df, years, periods):
+def calculate_disps(
+    df, 
+    years, 
+    periods, 
+    epoch_u=0.01, 
+    verbose=False
+    ) -> dict:
     """
     In case of annual displacement, it corresponds to year->year+1.
 
     :param df: dataframe containing x column.
     :param years: list of years to estimate for.
     :param periods: { 'period_name': [(start_month, start_day), (end_month, end_day), tolerance_doys] }
-    if tolerance_doys = -1 then no tolerance criteria are applied.
+        if tolerance_doys = -1 then no tolerance criteria are applied.
+    :param epoch_u: float, uncertainty of epoch position in metres.
+    :param verbose: if True then print logging to screen.
+    :returns: dict of values suitable for conversion to DataFrame.
     """
     dates_store = []
     for year in years:
@@ -111,24 +122,30 @@ def calculate_disps(df, years, periods):
 
             # Create start date and find nearest observation
             st1 = pd.Timestamp(year, bounds[0][0], bounds[0][1], 0, 0)
-            st2 = pd.Timestamp(year, bounds[0][0], bounds[0][1], 23, 59)
             
             nearest_start = find_nearest_occupation(df, st1)
-            diff1 = np.abs((nearest_start - st1).days).values
-            print('START', period_name, bounds[0], nearest_start[0], diff1)
+            diff1 = np.abs((nearest_start - st1).days)
+            print('START', period_name, bounds[0], nearest_start, diff1)
 
             # Create end date and find nearest observation
             if bounds[1][0] < bounds[0][0]:
                 year_here = year + 1
             else:
                 year_here = year
-            en1 = pd.Timestamp(year_here, bounds[1][0], bounds[1][1], 0, 0)
-            en2 = pd.Timestamp(year_here, bounds[1][0], bounds[1][1], 23, 59)
-            nearest_end = find_nearest_occupation(df, en1)
-            diff2 = np.abs((nearest_end - en1).days).values
-            print('END  ', period_name, bounds[1], nearest_end[0], diff2)
 
-            #!!! COME BACK TO THIS!!!
+            # Recall that we are working with a 1-hour resolution dataset, 
+            # created with .first() from the Gaussian-smoothed along-track flow.
+            # Therefore for the observation at the end of the period, we actually want to use 
+            # 00:00 of the day after, which tells us about the full 24-h of flow in the day.
+            en1 = pd.Timestamp(year_here, bounds[1][0], bounds[1][1], 0, 0) + pd.Timedelta(days=1)
+            
+            nearest_end = find_nearest_occupation(df, en1)
+            print(nearest_end)
+            diff2 = np.abs((nearest_end - en1).days)
+            print('END  ', period_name, bounds[1], nearest_end, diff2)
+
+            # Check whether this is the last year of observations
+            # If it is, then we can't derive annual for this year.
             last_year_obs = df[df.original == True].iloc[-1].name.year
             if period_name == 'Annual' and year_here > last_year_obs:
                 continue
@@ -141,7 +158,7 @@ def calculate_disps(df, years, periods):
                 # Observations are within permissible bounds
 
                 # Calculate displacement through period
-                disp = xyzi.x.loc[en1:en2].mean() - xyzi.x.loc[st1:st2].mean()
+                disp = df.x.loc[en1] - df.x.loc[st1]
                 disp = np.abs(np.round(disp, 2))
 
                 # Calculate velocity of period in metres per year
@@ -149,8 +166,11 @@ def calculate_disps(df, years, periods):
                     year_length = 366
                 else:
                     year_length = 365
-                period_length = (en2 - st1).days + 1
+                period_length = (en1 - st1).days # + 1
+                print(period_length)
                 vel = np.abs(np.round(disp / period_length * year_length, 2))
+
+                uncertainty = np.round(pp.calculate_uncertainty(disp, vel), 2)
 
                 if np.isnan(vel):
                     continue
@@ -161,10 +181,13 @@ def calculate_disps(df, years, periods):
                     year=year,
                     disp_m=disp,
                     vel_m_yr=vel,
+                    uncertainty_m_yr=uncertainty,
                     period_start_month_day=bounds[0], 
                     period_end_month_day=bounds[1], 
-                    nearest_obs_start=nearest_start[0], 
-                    nearest_obs_end=nearest_end[0]
+                    nearest_obs_start=nearest_start, 
+                    nearest_obs_end=nearest_end,
+                    diff_start_days=diff1,
+                    diff_end_days=diff2
                 )
                 dates_store.append(dates_store_year)        
         
@@ -172,8 +195,8 @@ def calculate_disps(df, years, periods):
 
 
 # +
-#sites = ['camp', 'f003', 'f004', 'fs05', 'kanu', 'lev5', 'lev6']
-sites = ['lev6']    
+sites = ['f003', 'f004', 'fs05', 'kanu', 'lev5', 'lev6'] #'camp'
+#sites = ['f004']    
     
 # Syntax:: period_name: [(start_month, start_day), (end_month, end_day), tolerance_days]
 periods = {
@@ -216,14 +239,14 @@ for site in sites:
     cols = disps_pd.columns.tolist()
     cols = cols[-1:] + cols[:-1]
     disps_pd = disps_pd[cols]
-    
-    disps_pd.to_csv(os.path.join(os.environ['GNSS_L2DIR'], site, f'{site}_seasonal_annual_{year_start}_{year_end}.csv'), 
-                    index=False)
+
+    site_dir = os.path.join(os.environ['GNSS_L2DIR'], site)
+    Path(site_dir).mkdir(exist_ok=True)
+    disps_pd.to_csv(os.path.join(site_dir, f'{site}_seasonal_annual_{year_start}_{year_end}.csv'), 
+                 index=False)
     display(disps_pd)
 # ---
 # ## Reloading example
-
-xyz.loc['2022-04']
 
 store = []
 for site in sites:

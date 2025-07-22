@@ -22,7 +22,7 @@
 #
 # In ipython:
 #
-#     # %run /path/to/gnss_disp_vel.py -h
+#     # # %run /path/to/gnss_disp_vel.py -h
 #     
 # As a Notebook:
 #
@@ -56,6 +56,7 @@
 
 import pandas as pd
 import os
+from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
@@ -133,6 +134,9 @@ if is_notebook():
         # %matplotlib inline
     else:
         raise ValueError('Unknown matplotlib backend specified for Notebook. Only widget or inline are understood (provided %s)' %args.nbplot)
+    # %load_ext autoreload
+    # %autoreload 2
+    # %aimport gnssice
 else:
     print('Terminal mode')
     args = p.parse_args()
@@ -144,6 +148,7 @@ os.chdir(WORKING_DIRECTORY)
 print('Working directory is now %s' %os.getcwd())
 
 path_output_L2 = os.path.join(os.environ['GNSS_L2DIR'], args.site)
+Path(path_output_L2).mkdir(exist_ok=True)
 print(f'Level-2 Directory: {path_output_L2}')
 # -
 
@@ -351,6 +356,56 @@ if not args.stake:
     xyz = filtd_disp.filter(items=('x', 'y', 'z'), axis='columns')
     xyz = xyz[filtd_i.interpolated == 0]
 
+# ## Calculate velocities
+
+if not args.stake:
+    # Calculate velocities
+    print('Calculating velocities')
+    v_24h = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz, method='epoch')
+    maxperday = pd.Timedelta('1D') / pd.Timedelta(args.sample_freq)
+    dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
+    dayperc.name = 'obs_cover_percent'
+    v_24h = pd.concat((v_24h, dayperc), axis=1)
+
+    # Longer-term velocities, following Doyle 2014 approach
+    d6h = filtd_disp.resample('6h').mean()
+    p15d = d6h.resample('15D').first()
+    v15d = (p15d.x.shift(1) - p15d.x) * pp.v_mult('15D')
+
+    # Regression-based approach
+    # !!TODO!! implement a mix of Doyle for continuous and this for daily occs...
+    # Want to apply this on the most raw data possible? i.e. not regliarsed and smoothed, as these
+    # are not helpful operations on daily data
+    # This doesn't really work on data filtered with a 'standard' approach - 
+    # only currently works with geod_neu_xy. What would a good filtering strategy for
+    # daily data look like?
+    # Or do these need to be reprocessed by TRACK with ambiguities fixed?
+    p30d = filtd.x.resample('30D').apply(pp.position_by_regression)
+    v30d = (p30d.shift(1) - p30d) * pp.v_mult('30D')
+
+
+v_24h
+
+plt.figure()
+plt.errorbar(v_24h.index+pd.Timedelta(hours=12), v_24h.v_24h_myr, yerr=v_24h.unc_myr, elinewidth=0.5, ecolor='silver', drawstyle='steps-mid')
+
+plt.figure()
+plt.errorbar(v_24h.index, v_24h.v_24h_myr, yerr=v_24h.unc_myr, elinewidth=0.5, ecolor='silver', drawstyle='steps-post')
+
+plt.figure()
+geod.loc['2023-08'].SigE.plot(marker='.', linestyle='none')
+
+filtd_disp
+
+plt.figure()
+geod_neu_xy.loc['2023-08'].x.plot(marker='.', linestyle='none')
+filtd.loc['2023-08'].x.plot(marker='.', linestyle='none')
+filtd_disp.loc['2023-08'].x.plot(linewidth=0.8)
+
+
+plt.figure()
+geod.loc['2023-08'].SigE.plot(marker='.', linestyle='none')
+
 # ## Export to disk
 
 # +
@@ -384,38 +439,16 @@ xyz.to_hdf(output_L2_H5, 'xyz', format='table')
 print('Saved displacements.')
 print('Main output file: %s ' %output_L2_H5)
 
-# ### Calculate and save velocities
+# ### Save velocities
 
 if not args.stake:
-    # Calculate velocities
-    print('Calculating velocities')
-    v_24h = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz)
-    maxperday = pd.Timedelta('1D') / pd.Timedelta(args.sample_freq)
-    dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
-    v_24h = pd.DataFrame({'v_24h':v_24h, 'obs_cover_percent':dayperc}, index=v_24h.index)
-
     v_24h.to_hdf(output_L2_H5, 'v_24h', format='table')
     output_v24h_csv = '%s_v24h.csv' %output_L2_base
     v_24h.to_csv(output_v24h_csv)
     print('24-hour velocities also exported to: %s.' %output_v24h_csv)
 
-    # Longer-term velocities, following Doyle 2014 approach
-    d6h = filtd_disp.resample('6H').mean()
-    p15d = d6h.resample('15D').first()
-    v15d = (p15d.x.shift(1) - p15d.x) * pp.v_mult('15D')
     v15d.to_hdf(output_L2_H5, 'v_15d', format='table')
-
-    # Regression-based approach
-    # !!TODO!! implement a mix of Doyle for continuous and this for daily occs...
-    # Want to apply this on the most raw data possible? i.e. not regliarsed and smoothed, as these
-    # are not helpful operations on daily data
-    # This doesn't really work on data filtered with a 'standard' approach - 
-    # only currently works with geod_neu_xy. What would a good filtering strategy for
-    # daily data look like?
-    # Or do these need to be reprocessed by TRACK with ambiguities fixed?
-    p30d = filtd.x.resample('30D').apply(pp.position_by_regression)
-    v30d = (p30d.shift(1) - p30d) * pp.v_mult('30D')
-
+    
     # consider calculating uncertainties? 
     # To what degree is this RMS? How do uncertainties reduce by avging?
     if args.v6h:
