@@ -511,24 +511,39 @@ class RinexConvert:
         self.institution = INSTITUTION
         self.observer = OBSERVER
 
-    def parse_rinex2_filename(fn, to_numeric=False):
+    def parse_rinex2_filename(
+        self,
+        fn, 
+        to_numeric=False
+        ) -> dict:
         """ Extract and return elements of a RINEXv2 file name 
+
+        Requires filename takes one of the format:
+            - nnnnddd0.yyo
+            - nnnn_ddd0.yy0
 
         to_numeric : bool. If True, parse DOY as integer.
         returns : dict {site, DOY, yr (2-charac), year (YYYY)}
         """
-        fn = os.path.split('/')[-1]
+        path, fn = os.path.split(fn)
         site = fn[0:4]
-        doy = fn[4:7]
-        yr = fn[-4:-2]
+        # For these components we work backwards in case there is a hyphen 
+        # separating the DOY from the site name
+        yr = fn[-3:-1]
+        doy = fn[-8:-5]
         if to_numeric:
             doy = int(doy)
         year = int(yr) + 2000
+        if '_' in fn:
+            hyphen = True
+        else:
+            hyphen = False
         return {
-            'site':site,
-            'DOY':doy,
+            'site': site,
+            'DOY': doy,
             'yr': yr,
-            'year':year
+            'year': year,
+            'hyphen': hyphen
         }
         
     def gvt_to_rinex(
@@ -755,20 +770,31 @@ class RinexConvert:
         doy_next = str(finfo['DOY'] + 1).zfill(3)
         doy = str(finfo['DOY']).zfill(3)
         yr = finfo['yr']
+        site = finfo['site']
+
+        if finfo['hyphen']:
+            h = '_'
+        else:
+            h = ''
 
         # Construct the command line parameters
-        f_prev = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site, f'{site}{doy_prev}0.{yr}o')
-        f_next = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site, f'{site}{doy_next}0.{yr}o')
-        f_out = os.path.join(os.environ['DATA_PATH_RINEX_OVERLAP'], args.site, f'{site}{doy}0.{yr}o')
-        epo_beg = str(finfo['year']) + doy + '_' + st_timestart
+        f_prev = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site, f'{site}{h}{doy_prev}0.{yr}o')
+        f_next = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site, f'{site}{h}{doy_next}0.{yr}o')
+        f_out = os.path.join(os.environ['GNSS_PATH_RINEX_OVERLAP'], site, f'{site}{doy}0.{yr}o')
+        epo_beg = str(finfo['year']) + doy_prev + '_' + st_timestart
         seconds = str(60 * 60 * dh)
 
+        # Make sure the output location exists
+        Path(os.path.join(os.environ['GNSS_PATH_RINEX_OVERLAP'])).mkdir(exist_ok=True)
+        Path(os.path.join(os.environ['GNSS_PATH_RINEX_OVERLAP'], site)).mkdir(exist_ok=True)
         # Construct the command
         cmd = ( 
-            f'gfzrnx -finp  {f_prev} {input_file} {f_next} '
-            f'-fout {f_out} '
-            f'-epo_beg {epo_beg} -d {seconds}'
+            f'gfzrnx -finp  {f_prev} {input_file} {f_next} '  # input filenames
+            f'-fout {f_out} '                                 # output filename
+            f'-epo_beg {epo_beg} -d {seconds} '               # when the epoch starts and how long it lasts
+            f'-kv'                                            # keep the input file format (RINEX2 vs 3)
         )
+        print(cmd)
         sout, serr = shellcmd(cmd)     
         return(sout, serr)
         
@@ -854,14 +880,15 @@ class Kinematic:
 
         # Identify rover receiver type from RINEX
         fpth = os.path.join(os.environ['GNSS_WORK'], 'rinex', rover, f'{rover}{doy_start}0.{yr_short}o')
+        print(fpth)
         rcv_type, serr = shellcmd("grep -E 'REC # / TYPE / VERS' %s | awk '{print $2, $3}'" %fpth)
-        rcvr = TRACK_CMD_RCVR[rcv_type]
+        rcvr = TRACK_CMD_RCVR[rcv_type.rstrip()]
 
         # Now build TRACK cmd filename
         cmdfile = os.path.join(os.environ['GNSS_WORK'], self.config_subfolder, f'track_{base}_{rover}_{rcvr}.cmd')
         # Check it is exists before we go any further
         if not os.path.exists(cmdfile):
-            raise IOError(f'Track CMD file {cmdf} not found.')
+            raise IOError(f'Track CMD file {cmdfile} not found.')
 
         # Set up output directory
         output_dir = os.path.join(os.environ['GNSS_PATH_TRACK_OUT'], rover)
@@ -1130,12 +1157,20 @@ def view_track_output(base, rover, doy, gtype='NEU', fname=None,
     plt.plot(only_fixed['dEast'], only_fixed['dNorth'],
                 c='tab:orange', marker='.', linestyle='none',
                 label='Position (unfixed epoches removed)', alpha=0.2)
+    
+    # First data point
     plt.plot(data['dEast'].iloc[0],data['dNorth'].iloc[0],
              c='tab:red', marker='+', markersize=10,
              label='Start')
+    # Last data point
     plt.plot(data['dEast'].iloc[-1],data['dNorth'].iloc[-1],
              c='tab:red', marker='+', markersize=10,
              label='End')
+    # Midnight values
+    midnights = data.between_time('00:00:00', '00:00:01')
+    plt.plot(midnights['dEast'],midnights['dNorth'],
+             c='tab:purple', marker='+', markersize=10,
+             label='Midnight positions')
     
     plt.ylabel('North (m)')
     plt.xlabel('East (m)')
