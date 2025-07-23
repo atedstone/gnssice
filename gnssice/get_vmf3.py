@@ -58,6 +58,13 @@ def main():
     output_dir = Path(args.output_dir)
     session = requests.Session()
 
+    # Get mandatory orography file (needed by track)
+    print('Downloading orography file')
+    fn = 'orography_ell_1x1'
+    orog_url = 'http://vmf.geo.tuwien.ac.at/station_coord_files/'
+    output_path = output_dir / 'orography' / fn
+    success = download_file(orog_url+fn, output_path)
+
     for date in list(daterange(start_date, end_date)):
         year_str = date.strftime("%Y")
         ymd = date.strftime("%Y%m%d")
