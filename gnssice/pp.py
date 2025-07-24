@@ -40,9 +40,22 @@ def create_time_index(
     if DOY=1, then without subtraction -> datetime(2021, 1, 2)
     
     """
-    ix = pd.to_datetime(data['YY'].astype(str)) + \
-            pd.to_timedelta(data['DOY'].round().astype(int) - 1, unit='days') + \
-            pd.to_timedelta(data['Seconds'].round().astype(int), unit='sec')
+    # NEU file
+    neu_cols = ['YY', 'MM', 'DD', 'HR', 'MIN', 'Sec']
+    if set(neu_cols).issubset(data.columns):
+        _tmp = data.filter(items=neu_cols, axis='columns')
+        _tmp = _tmp.rename(columns={'YY':'year', 'MM':'month', 'DD':'day', 'HR':'hour', 'MIN':'minute', 'Sec':'second'})
+        ix = pd.to_datetime(_tmp)
+
+    # GEOD file
+    elif set(['YY', 'DOY', 'Seconds']).issubset(data.columns):
+        ix = pd.to_datetime(data['YY'].astype(str)) + \
+                pd.to_timedelta(data['DOY'].round().astype(int) - 1, unit='days') + \
+                pd.to_timedelta(data['Seconds'].round().astype(int), unit='sec')
+
+    else:
+        raise ValueError('Could not find columns required to create time index.')
+
     return ix
 
 

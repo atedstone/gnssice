@@ -43,6 +43,7 @@ import click
 from pathlib import Path
 from glob import glob
 import shutil
+from gnssice import pp
 
 INSTITUTION = 'PLACEHOLDER'
 OBSERVER = 'PLACEHOLDER'
@@ -194,6 +195,9 @@ def confirm(prompt=None, resp=False):
         if ans.lower() == 'n':
             return False    
 
+def get_julian_day(dt):
+    return dt.timetuple().tm_yday
+
 def gpsweekD(yr, doy, wkday_suff=False):
     """
     Convert year, day-of-year to GPS week format: WWWWD or WWWW
@@ -241,7 +245,9 @@ def gpsweekD(yr, doy, wkday_suff=False):
 @click.argument('end_doy')
 @click.option('--orbit', default='codm')
 @click.option('--overlap', is_flag=True)
-@click.option('--clearup', is_flag=True)
+@click.option('--overwrite', is_flag=True, 
+    help='if True, overwrite existing files. If False, skip downloads and overlaps of days already available.'
+    )
 def get_orbits(
     year: int, 
     start_doy: int, 
@@ -249,7 +255,8 @@ def get_orbits(
     orbit: str='codm',
     download=True,
     overlap: bool=False,
-    clearup: bool=True
+    clearup: bool=True,
+    overwrite: bool=False
     ) -> None:
     """Download daily sp3 orbit files and optionally overlap them.
     
@@ -288,32 +295,43 @@ def get_orbits(
         """ Generate the filename format needed for our work flow. """
         return '{o}{y}{d}0.sp3'.format(
             o=ORBIT_PRODUCTS_TO_SP3_NAME[orbit],
-            y=str(year)[:-2],
+            y=str(year)[-2:],
             d=str(doy).zfill(3)
         )
 
     if download:
-        print('Downloading...')
-        cmd = f"sh_get_orbits -orbit {orbit} -yr " + str(year) + " -doy " + \
-            str(start_doy) + " -ndays " + str(n_days) + " -nofit"
-        print(cmd)
-        sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_SP3_DAILY'])
-        print(serr)
-
-        print('Renaming...')
+        print('Downloading and renaming...')
         for doy in range(start_doy, end_doy+1):
+            
+            # Create path and filename of target destination
+            target_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy))
+            
+            # Check whether file exists already
+            if os.path.exists(target_fn) and not overwrite:
+                continue
+            
+            # Download the day
+            cmd = f"sh_get_orbits -orbit {orbit} -yr " + str(year) + " -doy " + \
+            str(doy) + " -ndays 1 -nofit"
+            print(cmd)
+            sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_SP3_DAILY'])
+            if serr.rstrip() != '':
+                print(serr)
+
+            # Rename sh_get_orbits file to yyddd
             old_fn = '{o}{wd}.sp3'.format(
                 o=ORBIT_PRODUCTS_TO_SP3_NAME[orbit],
                 wd=gpsweekD(year, doy, wkday_suff=True)
-            )
-            target_fn = make_target_fn(orbit, year, doy)
+                )
             os.rename(
-                os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], old_fn),
-                os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], target_fn) 
-            )
+                os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], old_fn), 
+                target_fn
+                )
     
     if overlap:
         print('Overlapping...')
+
+        # Make sure overlap directory is available.
         Path(os.environ['GNSS_PATH_SP3_OVERLAP']).mkdir(exist_ok=True)
         
         # Start on DOY+1 because we already nudged the start_doy 1 day earlier above. 
@@ -330,6 +348,9 @@ def get_orbits(
             tomo_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy+1))
 
             out_fn = os.path.join(os.environ['GNSS_PATH_SP3_OVERLAP'], make_target_fn(orbit, year, doy))
+
+            if os.path.exists(out_fn) and not overwrite:
+                continue
 
             cmd = 'cat {prev} {today} {tomo} > {fn}'.format(
                 prev=yday_fn,
@@ -358,6 +379,7 @@ def get_ionex(
     doy_start: int, 
     doy_end: int, 
     overlap: bool=False,
+    overwrite: bool=False
     ) -> None:
     """Download daily IONEX files and optionally overlap them.
     
@@ -382,18 +404,37 @@ def get_ionex(
             ylen = 365
         doy_end = min(ylen, int(doy_end)+1)
 
-    ndays = doy_end - doy_start + 1
-    cmd = f'sh_get_ion -yr {year} -doy {doy_start} -ndays {ndays} -ftp_prog wget'
-    print(cmd)
-    sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_IONEX_DAILY']
-    )
-    print(f'Warning: sh_get_ion returned stderr (harmless if "ftp not found"): {serr}')
+    def get_ionex_filename(dt):
+        ddd = get_julian_day(dt)
+        yy = dt.strftime('%y')
+        f = f"igsg{ddd:03d}0.{yy}i"
+        pth = os.path.join(os.environ['GNSS_PATH_IONEX_DAILY'], f)
+        return pth
+
+    #ndays = doy_end - doy_start + 1
+    for date in pd.date_range(date_start, date_end):
+
+        # Check whether file already exists
+        target_fn = get_ionex_filename(date)
+        if os.path.exists(target_fn) and not overwrite:
+            continue
+
+        # Do the download of this day
+        doy = get_julian_day(dt)
+        cmd = f'sh_get_ion -yr {year} -doy {doy} -ndays 1 -ftp_prog wget'
+        print(cmd)
+        sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_IONEX_DAILY'])
+    #print(f'Warning: sh_get_ion returned stderr (harmless if "ftp not found"): {serr}')
 
     if overlap:
         print('Overlapping IONEX files')
+        ovrw = ''
+        if overwrite:
+            ovrw = ' -overwite'
         for date in pd.date_range(date_start, date_end):
             date_str = date.strftime('%Y-%m-%d')
-            sout, serr = shellcmd(f'splice_ionex {date_str} 2')
+            sout, serr = shellcmd(f'splice_ionex {date_str} 2{ovrw}')
+            print(sout)
             if serr != '':
                 raise RuntimeError(f'splice_ionex failed: {serr}')
 
@@ -880,22 +921,24 @@ class Kinematic:
 
         # Identify rover receiver type from RINEX
         fpth = os.path.join(os.environ['GNSS_WORK'], 'rinex', rover, f'{rover}{doy_start}0.{yr_short}o')
-        print(fpth)
+        if not os.path.exists(fpth):
+            raise IOError(f'RINEX file {fpth} not found.')
         rcv_type, serr = shellcmd("grep -E 'REC # / TYPE / VERS' %s | awk '{print $2, $3}'" %fpth)
         rcvr = TRACK_CMD_RCVR[rcv_type.rstrip()]
 
         # Now build TRACK cmd filename
-        cmdfile = os.path.join(os.environ['GNSS_WORK'], self.config_subfolder, f'track_{base}_{rover}_{rcvr}.cmd')
+        cmdfile = os.path.join(os.environ['GNSS_WORK'], self.config_subfolder, f'track_{base}_{rcvr}.cmd')
         # Check it is exists before we go any further
         if not os.path.exists(cmdfile):
             raise IOError(f'Track CMD file {cmdfile} not found.')
 
         # Set up output directory
+        Path(os.environ['GNSS_PATH_TRACK_OUT']).mkdir(exist_ok=True)
         output_dir = os.path.join(os.environ['GNSS_PATH_TRACK_OUT'], rover)
         Path(output_dir).mkdir(exist_ok=True)
 
         # Enter main processing loop, works on a per-day basis
-        for doy in range(doy_start,doy_end):
+        for doy in range(doy_start,doy_end+1):
 
             save_opts = dict(r=rover, b=base, y=year, d=str(doy).zfill(3))
 
@@ -907,22 +950,33 @@ class Kinematic:
                 " " + str(self.apriori[2])
                 logging.info("Using user-input APR coordinates: " + apriori)
             else:
-                print("Extracting APR coordinates from yesterday's data.")
+                print("Extracting APR coordinates from .LC file.")
                 try:                
-                    lc = open("track.GEOD." + rover + ".LC","r")
-                except IOError:
+                    #lc = open("track.GEOD." + rover + ".LC","r")
+                    lc = read_track_geod_file(f"track.GEOD.{rover}.LC")
+                except FileNotFoundError:
                     print("!!APR .LC file does not exist! Terminating processing.")
                     logging.info("Day " + str(doy).zfill(3) + ": APR .LC file does not exist, terminating")
-                    return False                    
-                lines = lc.readlines()
-                lc.close()
-                last_line = lines[-1]
-                vals = last_line.split()
+                    return False  
+
+                # LC file might have overlapped data, we only want to look at data from yesterday
+                lc = lc[lc.DOY == doy-1]
+                if len(lc) == 0:
+                    raise IOError('No records for yesterday found in .LC file.')
+
+                last_obs = lc.iloc[-10:-1].median()
+                #last_doy = last_obs['DOY']
+                #if int(last_doy) != doy-1:
+                #    raise IOError(f'DOY{last_doy} of last record in .LC file is not yesterday')
+
                 # Convert geodetic to cartesian
                 # File columns are in order 3=lat, 4=lon, 5=height
                 # Note that convertc takes order lon lat height.
-                sout, serr = shellcmd("convertc " + str(vals[4]) + " " + 
-                str(vals[3]) + " " + str(vals[5]) + " XYZ")                
+                #sout, serr = shellcmd("convertc " + str(vals[4]) + " " + 
+                #str(vals[3]) + " " + str(vals[5]) + " XYZ")                
+                cmd = 'convertc {0} {1} {2} XYZ'.format(last_obs['Longitude'], last_obs['Latitude'], last_obs['Height'])
+                print(cmd)
+                sout, serr = shellcmd(cmd)
                 xyz = sout.split()
                 apriori = str(xyz[0]).strip('-') + " " + str(xyz[1]).strip('-') + " " + str(xyz[2]).strip('-')
             
@@ -1055,7 +1109,7 @@ class Kinematic:
                 # Save a scatter plot, also display subject to above.
                 plot_fname = "track.NEU." + rover + ".LC"
                 save_plot_to = '{r}_{b}_{y}_{d}_{ftype}.png'.format(ftype='NEU', **save_opts)
-                view_track_output(base, rover, doy, 
+                plot_track_output(base, rover, doy, 
                                 fname=plot_fname,
                                 display=__show_plot,
                                 save_to=save_plot_to)
@@ -1095,12 +1149,12 @@ class Kinematic:
                 print("Saving these results.")
                 # NEU
                 os.rename(
-                    'track.NEU.{1}.LC'.format(rover), 
+                    'track.NEU.{0}.LC'.format(rover), 
                     os.path.join(output_dir, '{r}_{b}_{y}_{d}_NEU.dat'.format(**save_opts))
                     )
                 # GEOD (we copy rather than move this as the .LC file is still needed for extracting APR coordinates)
                 shutil.copy(
-                    'track.GEOD.{1}.LC'.format(rover), 
+                    'track.GEOD.{0}.LC'.format(rover), 
                     os.path.join(output_dir, '{r}_{b}_{y}_{d}_GEOD.dat'.format(**save_opts))
                     )
                 # Plot of results
@@ -1117,12 +1171,7 @@ class Kinematic:
         print("Batch finished.")
     
     
-# @click.command()
-# @click.argument('base')
-# @click.argument('rover')
-# @click.argument('doy')
-# @click.option('--gtype', default='NEU', help='currently only NEU supported')
-def view_track_output(base, rover, doy, gtype='NEU', fname=None, 
+def plot_track_output(base, rover, doy, gtype='NEU', fname=None, 
                       display=True, save_to=None):
     """Display a scatter plot of reconciled daily track data.
     
@@ -1147,29 +1196,32 @@ def view_track_output(base, rover, doy, gtype='NEU', fname=None,
     else:
         print('Files georeferenced in a format other than NEU are currently unsupported.')
         return
+
+    data.index = pp.create_time_index(data)
     
     plt.figure()
     
     plt.plot(data['dEast'], data['dNorth'],
                 c='tab:blue', marker='.', linestyle='none',
                 label='Positions', alpha=0.2)
+
     only_fixed = data[data['NotF'] == 0]
     plt.plot(only_fixed['dEast'], only_fixed['dNorth'],
                 c='tab:orange', marker='.', linestyle='none',
-                label='Position (unfixed epoches removed)', alpha=0.2)
+                label='Positions (NotF==0)', alpha=0.2)
     
     # First data point
     plt.plot(data['dEast'].iloc[0],data['dNorth'].iloc[0],
-             c='tab:red', marker='+', markersize=10,
+             c='tab:red', marker='+', markersize=10, linestyle='none',
              label='Start')
     # Last data point
     plt.plot(data['dEast'].iloc[-1],data['dNorth'].iloc[-1],
-             c='tab:red', marker='+', markersize=10,
+             c='tab:red', marker='+', markersize=10, linestyle='none',
              label='End')
     # Midnight values
     midnights = data.between_time('00:00:00', '00:00:01')
     plt.plot(midnights['dEast'],midnights['dNorth'],
-             c='tab:purple', marker='+', markersize=10,
+             c='k', marker='+', markersize=10, linestyle='none',
              label='Midnight positions')
     
     plt.ylabel('North (m)')
@@ -1185,3 +1237,15 @@ def view_track_output(base, rover, doy, gtype='NEU', fname=None,
     else:
         plt.close()
     return             
+
+
+@click.command()
+@click.argument('base')
+@click.argument('rover')
+@click.argument('doy')
+@click.option('--fname', default=None, help='filename of file to plot (otherwise inferred)')
+@click.option('--gtype', default='NEU', help='currently only NEU supported')
+@click.option('--save_to', default=None, help='filename to save to')
+def view_track_output(base, rover, doy, gtype='NEU', fname=None, save_to=None):
+    plot_track_output(base, rover, doy, gtype=gtype, save_to=save_to, fname=fname)
+    return

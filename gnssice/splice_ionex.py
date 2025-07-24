@@ -18,6 +18,7 @@ def parse_args():
     )
     parser.add_argument("date", help="Date to process in YYYY-MM-DD format")
     parser.add_argument("hours", type=int, help="Number of hours before and after to include")
+    parser.add_argument('-overwrite', action='store_true')
     return parser.parse_args()
 
 def get_julian_day(dt):
@@ -140,6 +141,12 @@ def main():
     target_date = datetime.strptime(args.date, "%Y-%m-%d")
     hours = args.hours
 
+    out_filename = f"igsg{get_julian_day(target_date):03d}0.{target_date.strftime('%y')}i"
+    out_pth = os.path.join(os.environ['GNSS_PATH_IONEX_OVERLAP'], out_filename)
+    if os.path.exists(out_pth) and not args.overwrite:
+        print(args.date + ': overlapped file already exists')
+        return
+
     prev_date = target_date - timedelta(days=1)
     next_date = target_date + timedelta(days=1)
 
@@ -185,8 +192,6 @@ def main():
     )
 
     Path(os.environ['GNSS_PATH_IONEX_OVERLAP']).mkdir(exist_ok=True)
-    out_filename = f"igsg{get_julian_day(target_date):03d}0.{target_date.strftime('%y')}i"
-    out_pth = os.path.join(os.environ['GNSS_PATH_IONEX_OVERLAP'], out_filename)
     write_ionex_file(out_pth, updated_header, tec_maps, rms_maps)
 
     print(f"Output written to: {out_filename}")
