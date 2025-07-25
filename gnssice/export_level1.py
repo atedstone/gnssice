@@ -143,7 +143,7 @@ def load_sort(args):
     # Load data and apply timestamp
     geod_store = []
     if args.geod_file is None:
-        path_to_data = os.path.join(os.environ['GNSS_WORK'], args.site, '*.parquet')
+        path_to_data = os.path.join(os.environ['GNSS_WORK'], 'processed_track', args.site, '*.parquet')
         print(f'Searching GNSS_WORK dir... ({path_to_data})')
         files = glob(path_to_data)
     elif len(args.geod_file) == 1:

@@ -1,22 +1,8 @@
 # GNSSIce - Processing of differential GNSS observations from ice sheets and glaciers
 
-This package provides functionality to kinematically process differential GNSS/GPS observations collected on moving ice (using TRACK), and to post-process them to yield displacements and velocities.
+This package provides functionality to use TRACK to kinematically process differential GNSS/GPS observations collected on moving ice, and to post-process them to yield displacements and velocities.
 
 If this is your first time using this package to process GNSS data, suggest reading the HISLIDE data user guide before continuing further.
-
-## Sticky - main differences between Leica and GVT systems
-
-Leica:
-
-- GPS only, therefore IGS FINAL sp3 sufficient
-- RINEX2 sufficient, therefore TEQC still works
-
-GVT:
-
-- Multi-constellation, so need multi-c sp3 files
-- RINEX3 files, so need to use gfzrnx
-- Need to tell TRACK which signals to use (with obs_file)
-- Need to tell TRACK which constellations to use (with tr_gnss)
 
 
 ## Sticky - Level-0 to Level-1 processing only: octopus.unil.ch quick-start
@@ -79,49 +65,64 @@ N.b. this quick-start assumes the following pre-requisites:
 
 ### Data levels
 
-- Level-0 : Refers to both raw binary data straight from the receivers (e.g. `*.ubx`) and RINEX files.
+- Level-0 : Refers to both (i) raw binary data straight from the receivers (e.g. `*.ubx`) and (ii) the representation of those same data as RINEX files.
 - Level-1 : GEOD data which have been kinematically post-processed with TRACK.
 - Level-2 : Derived values, e.g. along- and across-track displacements.
 
 ### Processing Level-0 to Level-1
 
-If you only want to process level-1 to level-2 then you can dis-regard these steps!
+If you only want to process level-1 to level-2 then you can ignore this section.
 
 1. Ensure everything is installed.
-2. Download final orbit (sp3) files for year.
-3. (Optional): Download IONEX files.
-4. Copy base and rover Leica files to working directory.
-5. Obtain third party data to cover gaps in our base record.
-6. `process_rinex`: Convert leica files to daily RINEX files (base and rover)
+2. Set up the working environment with VMF, IONEX, SP3 files.
+4. Copy base and rover files to working directory.
+5. (Obtain third party data to cover gaps in our base record.)
+6. `process_rinex`: Convert raw files to daily RINEX files (base and rover), and overlap them in windows if needed (usually best practise to do the overlapping.)
 7. `process_dgps`: Do TRACK kinematic processing.
     6a. Process 'temporary' fixes taken during redrilling/flights.
 8. `conc_daily_geod`: Concatenate daily TRACK GEOD files to year.
 
-Example using site **lev5**, 2021, days 129 to 242, without IONEX:
+
+Example using site **lev5** with a Leica 1200+ receiver, 2021, days 129 to 242:
 
 ```bash
-# Prepare
-cd /scratch
-mkdir gps_2021
-cd gps_2021
-cp -r /location/<TRACK_cmd_filename> .
-get_orbits 2021 129 242
+# First edit gnss.sh to set your desired paths, then source it
+source gnss.sh 
+# Prepare working directories, download VMF3, IONEX, SP3, overlap them.
+setup_wd 2021 129 242 -overlap
 
-# Process site RINEX (also do this for the base)
-mkdir lev5
-cp lev5
-cp /location/Default...m00 .
-process_rinex lev5 Default...m00 s -start 2021-05-09 -finish 2021-08-30
+# Copy the relevant TRACK cmd file template to your working directory
+cp -r /location/<TRACK_cmd_filename> $GNSS_WORK
+# Verify the contents of the cmd file, making sure that dcb.dat, antenna files are available.
+vi <TRACK_cmd_filename>
+
+# Make the raw data available (repeat for the base)
+cd $GNSS_PATH_RAWDATA
+mkdir lev5; cd lev5
+cp -r /location/myrawdata .
+
+# Process Leica raw files into RINEX (also do this for the base)
+process_rinex lev5 LS -filename Default...m00 s -start 2021-05-09 -finish 2021-08-30 -overlap
+
+# (If this receiver were a Cryologger GVT, we'd do this instead:)
+process_rinex lev5 G -overlap
 
 # Run TRACK
 # First get a-priori coordinates, and increase sigmas for cmd file site sigmas
-process_dgps rusb lev5 2021 129 130 -ap x y z
+process_dgps rusb lev5 2021 129 129 -ap x y z
 # Reduce site sigmas in cmd file then continue
 process_dgps rusb lev5 2021 130 242 
 
 # Post-process the batch of data you just processed.
+# This creates parquet files in the processed_track/lev5/ directory.
+# They have filenames rover_base_year_startDOY_endDOY_GEOD.parquet
 conc_daily_geod rusb lev5 2021 129 242
+
+# Eventually, combine batches of data together 
+# This produces filename rover_startyear_startDOY_endyear_endDOY_geod.parquet
+export_level1 lev5
 ```
+
 
 ### Processing Level-1 to Level-2
 
@@ -134,9 +135,9 @@ Continuing our example above:
 
 ```bash
 # Run next line only if no origin.csv file:
-calculate_local_origin lev5 lev5_rusb_2021_129_242_GEOD.parquet
+calculate_local_origin lev5 lev5_rusb_2021_129_2021_242_geod.parquet
 # Calculate velocities of this batch of data...
-gnss_disp_vel.py lev5 lev5_rusb_2021_129_242_GEOD.parquet
+gnss_disp_vel.py lev5 lev5_rusb_2021_129_2021_242_geod.parquet
 # ...Or 'add' them onto an existing dataset.
 gnss_disp_vel.py lev5  -f ...
 ```
@@ -160,14 +161,14 @@ pip install -e .
 
 This means that it won't matter where you then do your main working, the scripts will always be accessible. *(Note: the command line interface uses entry points: see the full list in `setup.cfg`.)*
 
-**Important**: This installation allows you to process Level-1 to Level-2 only. For Level-0 to Level-1, several other dependencies are required -- see below for information.
+**Important**: Installing `gnssice` allows you to process Level-1 to Level-2 only. For Level-0 to Level-1, several other dependencies are required -- see below for information.
 
 
 ### Dependencies needed for Level-0 to Level-1 data
 
 #### TRACK
 
-We use TRACK, part of GAMIT/GLOBK: http://geoweb.mit.edu/gg/. Usage requires a license, which needs to be requested from MIT in the case that your Institution is not already a User. Users are provided with an access password for GLOBK/Gamit/TRACK downloads.
+This package wraps TRACK, part of GAMIT/GLOBK: http://geoweb.mit.edu/gg/. Usage requires a license, which needs to be requested from MIT in the case that your Institution is not already a User. Users are provided with an access password for GLOBK/Gamit/TRACK downloads.
 
 You should check that the Gamit tables are sufficiently up to date for your captured GPS epochs. If they are not, update the GLOBK/Gamit installation following their instructions.
 
@@ -184,69 +185,61 @@ For the following, download the binaries relevant for your system and place them
 
 ## Detailed Usage: Level-0 to Level-1
 
-### Strategy for multi-year field campaigns
+### Multi-year field campaigns
 
-Clean up as you go, otherwise you'll end up with loads of files, e.g. once the Leica files have been converted to rinex, delete the Leica files, and so on. The scripts do not clean up.
+**This workflow treats data in 'batches'.** A batch of data corresponds to a specific base-rover combination over a specific time frame. Batches of data cannot span multiple years. So, if picking data from the field only once a year e.g. in springtime, the processing still needs to be split into two batches separated by the change in year.
 
-Place the TRACK cmd file(s) needed for your processing in this workspace folder. (e.g. `TRACK_rusb.cmd`).
-
-This workflow treats data in batches.
-
-A batch of data corresponds to a specific base-rover combination over a specific time frame. Batches of data cannot span multiple years. So, if collecting data only once a year e.g. in springtime, the processing needs to be split into two batches separated by the change in year.
-
-So, in the simple case of collecting data once a year and processing using the same base-rover combination, there will be two data batches:
-
-1. rover_base_year1_startDOY_endDOY
-2. rover_base_year2_startDOY_endDOY
-
-However, if a different base station needs to be used for certain periods, there will be multiple batches, e.g.
-
-1. rover_bas1_year1_100_200
-2. rover_bas2_year1_200_365
-3. rover_bas1_year2_0_100
-
+**Therefore, set up a work environment dedicated to a single calendar year.**
 
 ### Summary of file types
 
-* Orbit files: `igs<doy>.sp3`
+In the following,
+
+* `p`: provider (e.g. igs)
+* `y`: year (`yy` corresponds to the two-digit year, e.g. 21 for 2021)
+* `d`: day of year
+
+* Orbit files: `pppyyddd0.sp3` where `p` is provider (e.g. igs), `y` is year, `d` is day of year
 * RINEX files:
-	- If compressed: `*.<yy>d`
-	- If uncompressed: `*.<yy>o`
-	- Daily files: 	 `<site>_<doy>0_d.<yy>o`
-	- Overlapped files: `<site>_<doy>0_ol.<yy>o`
-	- (File with multiple days: `all_<site>.<yy>o`)
-* TRACK command files: `TRACK_<base>.cmd`
+	- **!!! Note that we ONLY use the RINEX2 filename format, even for RINEX3 files !!!**
+	- If compressed: `*.yyd`
+	- If uncompressed: `*.yyo`
+* TRACK command files: `TRACK_<base>_<rcvtype>.cmd`
 * Files generated by TRACK:
 	- Log file: `<rover>_<base>_<year>_<doy>.out`
-	- GEOD results file: `<rover>_<base>_<year>_<doy>_GEOD.dat` or `<rover>_<base>_<doy>GEOD.dat` (old)
-	- NEU results file: `<rover>_<base>_<year>_<doy>_GEOD.dat` or `<rover>_<base>_<doy>NEU.dat` (old)
-    - Figures: `<rover>_<base>_<year>_<doy>_NEU.png` or `TRACKpy.NEU.<rover>.LC.<doy>.eps` (old)
+	- GEOD results file: `<rover>_<base>_<year>_<doy>_GEOD.dat` 
+	- NEU results file: `<rover>_<base>_<year>_<doy>_GEOD.dat` 
+    - Figures: `<rover>_<base>_<year>_<doy>_NEU.png` 
 	- Processing session log: `gps.TRACK.<rover>.log`
-* Post-processed files: `<rover>_<year>_geod.dat` or `<rover>_<start year>_<end year>_geod.dat`
 
 
+### Explanation of working directory and structure
 
+This package relies on environment variables to find input and output file locations. You should copy and adapt `gnss.sh` to suit your needs.
 
+The root of all processing is defined by `$GNSS_WORK`. All Level-0 to Level-1 processing commands will operate here, even if your terminal prompt location is elsewhere on the server.
 
-	 
-### Note on gnss.py functionality
+Looking at the rest of `gnss.sh`, see that we distinguish between 'daily' versus 'overlapped' input files, each of which are stored in their own distinct folders. The 'overlap' folders will only exist if you explicitly request overlapping files.
 
-RinexConvert has been developed with Leica 530 and 1200 receivers in mind. Some functionality works with other receivers, e.g. window_overlap works with Trimble dat files (but not .T00/.T01).
+Whether you use overlapping files or not, TRACK always expects the following locations inside the `$GNSS_WORK` directory to be available: 
+
+- `vmf` 
+- `sp3` (symlink)
+- `ionex` (symlink)
+- `raw/<site>/`
+- `rinex/<site>/` (symlink)
+- `processed_track/<site>/` 
+
+If you use `setup_wd` (next section) then all the folders in the `gnss.sh` file and in the list above will get created automatically, apart from `processed_track` which gets made later by `process_dgps`. As indicated in the list above, some of these are actually symlinks to the underlying 'daily' or 'overlap' folders, depending on whether you are using overlapping files in your workflow.
 
 
 ### Preparations
 
-Make sure you are putting all these following files into the scratch/working space you set up above.
+**Easy preparations:** `source gnss.sh` then `setup_wd` to setup your working directory according to your environment variables, including creating all the folders needed to get started with analysis. It will download all SP3, IONEX and VMF3 files for your period of interest, and overlap them if requested. If you subsequently need to extend the time series of these files, just run the command again with the updated start and end days.
 
-Use a terminal window to do the following....
+**To overlap or not?** Short answer = yes, overlap. There is usually no good reason not to. This workflow will handle making overlapping files for you if you ask it to (RINEX, SP3 and IONEX files).
 
-
-#### To overlap or not?
-
-For the Leverett transect 2009-2013 campaign, we processed RINEX files in overlapping 28-hour windows. However, for sites with longer baselines it is preferable to include use of IONEX files, which are delivered daily and cannot be overlapped. Furthermore, TRACK will fail if called with the `IONEX_FILE` option and overlap in **any** of the `sp3` or RINEX files. 
-
-This means that if you wish to process lower sites in overlapping windows and higher sites with IONEX maps then you will need to produce two separate sets of RINEX/SP3 files: one with overlaps, the other in pure daily form.
-
+Following is an explanation of how do these preparations manually.
 
 #### Get the orbit files
 
@@ -256,9 +249,7 @@ get_orbits <year> <start doy> <end doy>
 
 Add `-overlap` if running the workflow with overlapping daily RINEX files.
 	 
-N.b. don't attempt this over a change in year, e.g. start of 360 and end of 4. Instead do two calls.
-The only problem will then be that days 365 and 1 don't contain the next and previous days data respectively.
-Just copy and paste from the relevant files into the next, or on unix command line use cat, e.g:
+N.b. don't attempt this over a change in year, e.g. start of 360 and end of 4. Instead do two calls. The only problem will then be that days 365 and 1 don't contain the next and previous days data respectively. Just copy and paste from the relevant files into the next, or on unix command line use cat, e.g:
 
 ```bash
 cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
@@ -267,7 +258,9 @@ cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
 
 #### Optional: Get 3rd party base RINEX files.
 
-If required, download rinex files from another site to cover the gaps.
+If required, obtain RINEX files from another site to cover the gaps.
+
+Sometimes 3rd party base files can be downloaded directly from public archives using the GAMIT/GLOBK script `sh_get_rinex`: 
 
 ```bash
 sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely
@@ -281,10 +274,14 @@ crx2rnx $f;
 done
 ```	    
  
-Overlap/window the kellyville rinex files: see 'Convert leica files to Rinex', but choose appropriate option to deal with rinex files at command line.
+Overlap/window RINEX files using the `R` file type argument to `process_rinex`:
+
+```bash
+process_rinex site R -overlap
+```
 
 
-#### Optional: IONEX files
+#### IONEX files
 
 Recommended for long baselines, e.g. > 100 km. See also the TRACK help info and Doyle et al. (2014) supplementary methods.
 
@@ -297,26 +294,28 @@ TRACK needs to be told about these files by adding the `IONEX_FILE` option in th
 ``` 
 
 
-#### Update TRACK COMMAND file
+#### TRACK COMMAND file
 
-Ensure that the TRACK command file is correct for the site you are processing. Basically, each base station needs its own command file. There are several details to get right.
+Ensure that the TRACK command file is correct for the site you are processing. Basically, each combination of base station and receiver type needs its own command file. There are several details to get right.
 
-* If using the workflow with 'overlapping' files, you will need `_ol` in the `obs_file` extensions, immediately before the file suffix.
+* The filename must be in the format `track_<base>_<rcvtype>.cmd`, where:
+	* `<base>` is the 4-letter base station identifier, e.g. rusb, klsq
+	* `<rcvtype>` refers to the relevant entry in the receivers lookup table `TRACK_CMD_RCVR` in `gnss.py`. E.g. for a cryologger GVT use the value `gvt`.
 * Check that the `site_pos` for the base station is correct.
-* Ensure that the DCB file is available.
+* Ensure that the stated DCB file is available.
 * Ensure that the `ante_off` settings are correct 
 	- Check that the antenna set in the command file matches the antenna indicated in a RINEX file header for the site.
 	- Check that the receiver type (last argument of `ante_off`) is correct
-* Check that the antmod_file is available.
+* Check that the stated antmod_file is available.
 		
 	
-#### Convert leica files to RINEX
+#### Convert the raw files to RINEX
 
-Copy the raw Leica files for the rover and base into the scratch space.
+Copy the raw files for the rover and base into the scratch space.
 
-We can convert to RINEX files which are windowed to 28hrs duration: from 22:00 the previous day to 02:00 the next day. However, this option does not work if using IONEX files!
+We can convert to RINEX files which are windowed to 28hrs duration: from 22:00 the previous day to 02:00 the next day. 
 
-In your terminal window, make sure you're in your scratch gps directory.
+In your terminal window, make sure you're in your `$GNSS_WORK` directory.
 
 Use `process_rinex`, run with `-h` to find out the options.
 
@@ -331,7 +330,6 @@ After, you can delete any empty files:
 
 Pre-requisites:
 
-- Firstly, make sure you have appropriate `.cmd` files for your base station site. See existing options in the `lev_gps_config` repository. Initial recommendation for shorter baselines with 10-15sec sampling would be to use `TRACK_levb.cmd` as a template. For longer baselines with sparser sampling, use `TRACK_kely.cmd` as a template.
 - A number of additional arguments are hard-set in the cmd files created for each base station, (e.g. levb, kely), e.g. site_stats and bf_set. These probably don't need to be modified from their default values...
 - Open `process_dgps.py` and ensure that the default parameters for processing with your base station are set up - follow the format in the file. Again, set initial values based on recommendation above, unless you've more specific information to go on... 
 
@@ -351,13 +349,10 @@ Subsequently select no. The program takes the APR coordinates from the previous 
 
 #### Processing
 
-Open a terminal window at the scratch location. 
-**If using PuTTY make sure you also have Xming working - for figure windows.**
-
 With loose `site_stats` in the TRACK cmd file, run only the first day of the site using a-priori coordinates:
 
 ```bash
-process_dgps <base> <rover> <year> <start DOY> <start DOY +1> -ap <X> <Y> <Z>
+process_dgps <base> <rover> <year> <start DOY> <start DOY> -ap <X> <Y> <Z>
 ```
 
 Once this has completed, tighten the `site_stats` in the TRACK cmd file, then run:
@@ -370,7 +365,7 @@ You don't have to process an entire site in one session. Enter the start day and
 
 If providing a-priori coordinates (-ap): TRACK will not transfer negative values to the cmd file. Instead, put them positive here and make sure there is a negative sign (-) in the relevant field of the cmd file. Keep this negative sign in place for all subsequent processing of a site with a negative coordinate.
 
-`process_dgps.py` has defaults for `ion_stats`, `MW_WL` and `LG` set. These vary depending on the specified base station: at the time of writing, levb and kely are both supported.
+`process_dgps` has defaults for `ion_stats`, `MW_WL` and `LG` set. These vary depending on the specified base station: at the time of writing, levb and kely are both supported.
 
 By default, TRACK is set up to accept the day's results automatically, using an RMS approach. (A Spearman correlation approach is also available). The thresholds are set in the arguments to gnss.Kinematic.TRACK().
 
@@ -378,17 +373,17 @@ TRACK can also be set up to require the user to accept every day manually - prov
 
 Initially, TRACK will try to use the default ion_stats, MW_WL and LG parameters as specified in `process_dgps.py`.
 
-If you choose to reject TRACK's initial results based on the default parameters, you can enter your own:
+If you choose to reject TRACK's initial results based on the default parameters, you can enter your own, explanations below are based on the TRACK help file:
 
-- `ion_stats`. This parameter sets ion_stats in the TRACK cmd file. It seems to do something - not sure what - even though the TRACK documentation suggests that many more arguments for ion_stats are required. 	Does it just set `<jump>`? (String number: `<S06>`)
-- MW_WL weighting. Weight to be given to deviation of MW-WL from zero. Default is 1 (ie., equal weight with LC residuals). Setting the value smaller will downweight the contribution of the MW-WL. For noisy or systematic range data (can be tested with a P1,P2 or PC solution), the WL_fact may be reduced.
+- `jump`, the largest jump in the ion delay allowed before bias flag introduced. This parameter sets `@ion_stats <jump>` in the TRACK cmd file. (String number: `<S06>`)
+- `WL_Fact`, the MW-WL weighting. Weight to be given to deviation of MW-WL from zero. Default is 1 (ie., equal weight with LC residuals). Setting the value smaller will downweight the contribution of the MW-WL. For noisy or systematic range data (can be tested with a P1,P2 or PC solution), the WL_fact may be reduced.
 	+ MW WL stands for Melbourne-Wubbena (MW) wide lane (this is the combination of range and phase that gives the difference between the L1 and L2 biases and it independent of the ionospheric delay and the geometry - TRACK help file line 266). The parameter is taken by the float_type command, setting `@FLOAT_TYPE <WL_Fact>` (string number: `<S04>`).
-- LG combination weighting. Weight to be given to deviation of the Ionospheric delay from zero.  Default is 1 (i.e., ionospheric delay is assumed to be zero and given unit weighting in deterimining how well a set of integer ambiquities fit the data.  On long baselines, value should be reduced.
-	+ For long baselines (>20 km) the `<Ion_fact>` should be reduced to give less weight to the ionospheric delay constraint.  For 100 km baselines, 0.1 seems to work well.  With very good range data (ie., WL ambiquities all near integer values), this factor can be reduced. Sets `<Ion_fact>` argument for @FLOAT_TYPE (string number `<S05>`).
-		
-The results should eventually pop up in a figure window, and the RMS values should appear in the terminal window. Particularly if using kely, processing times of >15 mins per day are not unusual.
+- `Ion_fact`, the LG combination weighting. Weight to be given to deviation of the Ionospheric delay from zero.  Default is 1 (i.e., ionospheric delay is assumed to be zero and given unit weighting inz deterimining how well a set of integer ambiquities fit the data.  On long baselines, value should be reduced.  Sets `<Ion_fact>` argument for @FLOAT_TYPE (string number `<S05>`).
+	-  For long baselines (>20 km) this value should be reduced to give less weight to the ionospheric delay constraint.  For 100 km baselines, 0.1 seems to work well.  With very good range data (ie., WL ambiquities all near integer values), this factor can be reduced.
 
-The figure window will block input to the terminal window until it is closed.
+Particularly if processing long baselines, processing times of >15 mins per day are not unusual.		
+
+If results fail the automated quality check, they will pop up in a figure window, and the RMS values will appear in the terminal window. The figure window will block input to the terminal window until it is closed.
 
 You'll be asked to input some information for logging - a quality identifier, and an optional longer comment. These are appended the the log file.
 
@@ -402,10 +397,10 @@ Quality identifiers:
 If RMS high and results not good, try (in the following order):
 
 1. Increase `ion_stats`, up to maybe 3 or 4. Choose the combination that gives the lowest rms and produces the closest to a straight line when plotted.
-2. Reduce MW_WL weighting from default=1 to say 0.5 if data appear noisy.
-3. Possibly try reducing LG weighting - especially for sites further away where the ionosphere has an increasingly large effect.
+2. Reduce `WL_fact` from default=1 to say 0.5 if data appear noisy.
+3. Possibly try reducing `Ion_fact` - especially for sites further away where the ionosphere has an increasingly large effect.
 
-We used to suggest that `site_stats` could be increased if results looked to be of poor quality. However, now we think we understand this more... the defaults set in the cmd file reflect our predictions that sites are unlikely to be > 10 metres away from a priori position (ish), and should not have moved more than 2 metres compared to the last epoch. So, increasing these values shouldn't really help... (but it does sometimes!)
+In addition, sometimes increasing `site_stats` in the TRACK cmd file can help when results are of poor quality. But, the defaults set in the cmd file reflect our predictions that sites are unlikely to be > 10 metres away from a priori position (ish), and should not have moved more than 2 metres compared to the last epoch. So, increasing these values shouldn't really help... (but it does sometimes!)
 
 Possible errors:
 
@@ -414,6 +409,7 @@ Possible errors:
 - `!!APR .LC file does not exist! Terminating processing.` If you are expecting a .LC file to exist this may again mean that you are trying to process while not in your working directory.
 - `STOP FATAL Error: Stop from report_stat.` Have you remembered to update the RINEX file suffix in the TRACK CMD files to reflect the year you are processing?
 - Something about fortran files: you probably haven't loaded gamit module - see start of this doc.
+- `For        0 Double differences: Average RMS        NaN mm` and lots of clock warnings in the TRACK .out file: check that your a-priori coordinates for the rover site are good. If you took them directly from the header of the first RINEX file then there a higher likelihood that they are bad; either look at other RINEX files or consider getting a PPP solution.
 
 Old ideas on trying to improve results - sometimes work but we're even less certain why!
 
@@ -485,7 +481,7 @@ Copy the GEOD results files into your main GPS processing directory. You'll then
 
 #### Level-0 data
 
-The RINEX files constitute Level-0 data for archival. Compress these files to CompactRINEX using RNXCRZ.
+The RINEX files constitute Level-0 data for archival. Compress these files to CompactRINEX using RNXCRZ, and then gzip them to compress further.
 
 
 ### Concatenate the TRACK files
@@ -494,7 +490,19 @@ The GEOD TRACK output files need to be combined together, removing the overlappi
 
 Use `conc_daily_geod` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation near the start of this readme). 
 
-Then export to a continuous Parquet file using `export_level1.py`.
+Then export all the data batches to a continuous Parquet file using `export_level1.py`, more details as follows:
+
+In the simple case of collecting data once a year and processing using the same base-rover combination, there will be two data batches:
+
+1. rover_base_year1_startDOY_endDOY
+2. rover_base_year2_startDOY_endDOY
+
+However, if a different base station needs to be used for certain periods, there will be multiple batches, e.g.
+
+1. rover_bas1_year1_100_200
+2. rover_bas2_year1_200_365
+3. rover_bas1_year2_0_100
+
 
   
 ## Detailed Usage: Processing from Level-1 to Level-2: To displacements and velocities
@@ -592,14 +600,22 @@ Retain the following files generated during processing for internal (re-)use:
 	
 ## Other information
 
-### Working with U-Blox and RINEX-3
+### Main differences between Leica and GVT systems
 
-There are a few issues here:
+Leica:
 
-- Generating compliant RINEX-3 files from ubx files
-- Arranging filenames that the workflow can understand
+- GPS only, therefore IGS FINAL sp3 sufficient
+- RINEX2 sufficient, therefore TEQC still works
 
-#### Telling TRACK which observables to use
+GVT:
+
+- Multi-constellation, so need multi-c sp3 files
+- RINEX3 files, so need to use gfzrnx
+- Need to tell TRACK which signals to use (with obs_file)
+- Need to tell TRACK which constellations to use (with tr_gnss)
+
+
+### Telling TRACK which observables to use
 
 If TRACK exits with `**DISASTER** No overlapping data at site` yet the RINEX files are definitely for the same day, then the issue is likely with specifying the observables. See email AT-Mike Floyd, 14.07.2025:
 
@@ -660,6 +676,6 @@ Email exchange between AJT and MAK, December 2013-January 2014.
 
 ## Credits
 
-* Andrew Tedstone 2012-2014 and 2022-24.
+* Andrew Tedstone 2012-2014 and 2022-25.
 * Developed from previous processing routines written by Matt King, Andrew Sole, Ian Bartholomew.
 

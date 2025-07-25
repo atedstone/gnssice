@@ -408,19 +408,19 @@ def get_ionex(
         ddd = get_julian_day(dt)
         yy = dt.strftime('%y')
         f = f"igsg{ddd:03d}0.{yy}i"
-        pth = os.path.join(os.environ['GNSS_PATH_IONEX_DAILY'], f)
-        return pth
+        return f
 
     #ndays = doy_end - doy_start + 1
+    print('Downloading IONEX files')
     for date in pd.date_range(date_start, date_end):
 
         # Check whether file already exists
-        target_fn = get_ionex_filename(date)
+        target_fn = os.path.join(os.environ['GNSS_PATH_IONEX_DAILY'], get_ionex_filename(date))
         if os.path.exists(target_fn) and not overwrite:
             continue
 
         # Do the download of this day
-        doy = get_julian_day(dt)
+        doy = get_julian_day(date)
         cmd = f'sh_get_ion -yr {year} -doy {doy} -ndays 1 -ftp_prog wget'
         print(cmd)
         sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_IONEX_DAILY'])
@@ -432,6 +432,11 @@ def get_ionex(
         if overwrite:
             ovrw = ' -overwite'
         for date in pd.date_range(date_start, date_end):
+            # Check whether file already exists
+            target_fn = os.path.join(os.environ['GNSS_PATH_IONEX_OVERLAP'], get_ionex_filename(date))
+            if os.path.exists(target_fn) and not overwrite:
+                continue
+
             date_str = date.strftime('%Y-%m-%d')
             sout, serr = shellcmd(f'splice_ionex {date_str} 2{ovrw}')
             print(sout)
@@ -596,7 +601,7 @@ class RinexConvert:
         site_type : str='Glacier',
         observer : str=None,
         ) -> None:
-        """ Convert a daily GVT u-blox file to a daily RINEX3 file. Wraps convbin.
+        """ Convert a daily Cryologger Glacier Velocity Tracker (GVT) u-blox file to a daily RINEX3 file. Wraps convbin.
 
         input_file : the path to the .ubx file.
         site : the 4-character site identifier.
@@ -795,7 +800,8 @@ class RinexConvert:
         self, 
         input_file : str,
         st_timestart : str='000000', 
-        dh : int=24
+        dh : int=24,
+        overwrite : bool=False
         ):
         """ Make daily RINEX file with overlapping window into the preceding and subsequent days.
 
@@ -822,15 +828,29 @@ class RinexConvert:
         f_prev = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site, f'{site}{h}{doy_prev}0.{yr}o')
         f_next = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site, f'{site}{h}{doy_next}0.{yr}o')
         f_out = os.path.join(os.environ['GNSS_PATH_RINEX_OVERLAP'], site, f'{site}{doy}0.{yr}o')
+
+        if os.path.exists(f_out) and not overwrite:
+            print(f'{f_out} exists, skipping')
+            return None
+
+        # Allow incomplete overlaps so that we can start processing on first day of series
+        if not os.path.exists(f_prev):
+            print(f'!! Warning: no previous-day RINEX file for DOY {doy}')
+            f_prev = ''
+        if not os.path.exists(f_next):
+            f_next = ''
+            print(f'!! Warning: no next-day RINEX file for DOY {doy}')
+
         epo_beg = str(finfo['year']) + doy_prev + '_' + st_timestart
         seconds = str(60 * 60 * dh)
 
         # Make sure the output location exists
         Path(os.path.join(os.environ['GNSS_PATH_RINEX_OVERLAP'])).mkdir(exist_ok=True)
         Path(os.path.join(os.environ['GNSS_PATH_RINEX_OVERLAP'], site)).mkdir(exist_ok=True)
+
         # Construct the command
         cmd = ( 
-            f'gfzrnx -finp  {f_prev} {input_file} {f_next} '  # input filenames
+            f'gfzrnx -finp {f_prev} {input_file} {f_next} '   # input filenames
             f'-fout {f_out} '                                 # output filename
             f'-epo_beg {epo_beg} -d {seconds} '               # when the epoch starts and how long it lasts
             f'-kv'                                            # keep the input file format (RINEX2 vs 3)
@@ -883,7 +903,7 @@ class Kinematic:
         provided in the command line arguments. The negative sign must
         be put in the site-specific track cmd file.
         
-        Cmd files are named as track_<base>.cmd
+        Cmd files are named as track_<base>_<rcv_type>.cmd
         
         Inputs:
             base: 4-character identifier of static base station.
@@ -962,7 +982,7 @@ class Kinematic:
                 # LC file might have overlapped data, we only want to look at data from yesterday
                 lc = lc[lc.DOY == doy-1]
                 if len(lc) == 0:
-                    raise IOError('No records for yesterday found in .LC file.')
+                    raise ValueError('No records for yesterday found in .LC file.')
 
                 last_obs = lc.iloc[-10:-1].median()
                 #last_doy = last_obs['DOY']
@@ -989,11 +1009,11 @@ class Kinematic:
                 exclude_svs = ''                
                 if retry == True:
                     print("Reprocessing day...enter new values or press Return to use Default.")
-                    ion_stats = input("    @ion_stats <jump>: ")
+                    ion_stats = input("    @ion_stats <jump> [default={0}]: ".format(self.ion_stats))
                     if len(ion_stats) == 0: ion_stats = self.ion_stats
-                    MW_WL = input("    @float_type <WL_Fact> (MW_WL weighting): ")
+                    MW_WL = input("    @float_type <WL_Fact> (MW_WL weight) [default=[{0}]: ".format(self.MW_WL))
                     if len(MW_WL) == 0: MW_WL = self.MW_WL
-                    LG = input("    @float_type <Ion_fact> (LG Combination Weighting): ")
+                    LG = input("    @float_type <Ion_fact> (LG comb. weight) default=[{0}]: ".format(self.LG))
                     if len(LG) == 0: LG = self.LG
                     print("Processing with new parameter values...")
                 else:
@@ -1088,7 +1108,7 @@ class Kinematic:
                             show_plot = True
                         comment = 'Spearman: %s' %spearman[0]
                     elif rms_threshold != None:
-                        rms = np.median(np.array(store_rms))
+                        rms = np.round(np.median(np.array(store_rms)), 2)
                         print('Median RMS: %s' %rms)
                         if rms < rms_threshold:
                             keep = True

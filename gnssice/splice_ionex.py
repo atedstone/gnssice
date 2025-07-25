@@ -158,18 +158,26 @@ def main():
         'next': Path(get_ionex_filename(next_date)),
     }
 
-    for label, path in files.items():
-        if not path.exists():
-            raise FileNotFoundError(f"Missing required IONEX file: {path}")
+    # for label, path in files.items():
+    #     if not path.exists():
+    #         raise FileNotFoundError(f"Missing required IONEX file: {path}")
 
     all_maps = []
+    c = 0
     for dt, label in zip([prev_date, target_date, next_date], ['prev', 'curr', 'next']):
+        if not files[label].exists():
+            print('!! Warning: files[label] does not exist')
+            c += 1
+            continue
         lines = read_ionex_file(files[label])
         header, body = split_header_body(lines)
         maps = parse_maps(body)
         all_maps.extend(maps)
         if label == 'curr':
             curr_header = header
+
+    if c == 2:
+        raise FileNotFoundError('Missing two of three input IONEX files for splicing.')
 
     start_time = target_date - timedelta(hours=hours)
     end_time = target_date + timedelta(hours=24+hours)

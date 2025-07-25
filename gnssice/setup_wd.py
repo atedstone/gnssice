@@ -25,15 +25,16 @@ def cli():
     parser.add_argument("doy_start", type=int, help="Day of year on which to start downloads")
     parser.add_argument("doy_end", type=int, help="Day of year on which to end downloads")
     parser.add_argument("-overlap", action='store_true', help='Overlap the SP3 and IONEX files')
+    parser.add_argument("-orbit", type=str, default='codm', help='Type of sp3 orbit type to download. (e.g. codm, igsf)')
     
     args = parser.parse_args()
-    run_setup(args.year, args.doy_start, args.doy_end, args.overlap)
+    run_setup(args.year, args.doy_start, args.doy_end, args.overlap, args.orbit)
 
 def print_header(text):
     print('-------------------------------------------------------------------')
     print(f'{text}')
 
-def run_setup(year, doy_start, doy_end, overlap):
+def run_setup(year, doy_start, doy_end, overlap, orbit):
 
     if os.environ['GNSS_WORK'] is None:
         raise RuntimeError('$GNSS_WORK not found in env variables.')
@@ -66,27 +67,40 @@ def run_setup(year, doy_start, doy_end, overlap):
         sout, err = shellcmd('ln -s ')
     else:
         _add = ''
-    sout, serr = shellcmd(f'get_orbits {year} {doy_start} {doy_end}{_add}')
+    sout, serr = shellcmd(f'get_orbits {year} {doy_start} {doy_end}{_add} --orbit {orbit}')
     if serr != '':
         raise RuntimeError(f'get_orbits failed: {serr}')
 
     # IONEX files
     print_header('Downloading IONEX files, overlapping if requested')
     sout, serr = shellcmd(f'get_ionex {year} {doy_start} {doy_end}{_add}')
+    if serr != '':
+        raise RuntimeError(f'get_ionex failed: {serr}')
 
     # Sym-links depend on whether the workflow is setup for overlapped processing or not.
     print_header('Setting symlinks')
     wd = os.environ['GNSS_WORK']
     if overlap:
-        shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_SP3_OVERLAP']).stem + ' sp3', cwd=wd)
-        shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_IONEX_OVERLAP']).stem + ' ionex', cwd=wd)
-        shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_RINEX_OVERLAP']).stem + ' rinex', cwd=wd)
-        print('Symlinks to sp3, ionex, rinex set from $GNSS_PATH_*_OVERLAP paths')
+        t = 'OVERLAP'
     else:
-        shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_SP3_DAILY']).stem + ' sp3', cwd=wd)
-        shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_IONEX_DAILY']).stem + ' ionex', cwd=wd)
-        shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_RINEX_DAILY']).stem + ' rinex', cwd=wd)
-        print('Symlinks to sp3, ionex, rinex set from $GNSS_PATH_*_DAILY paths')
+        t = 'DAILY'
+    
+    if not os.path.exists(os.path.join(os.environ['GNSS_WORK'], 'sp3')):
+        print('Making symlink: sp3')
+        shellcmd('ln -s ' + Path(os.environ[f'GNSS_PATH_SP3_{t}']).stem + ' sp3', cwd=wd)
+    if not os.path.exists(os.path.join(os.environ['GNSS_WORK'], 'ionex')):
+        print('Making symlink: ionex')
+        shellcmd('ln -s ' + Path(os.environ[f'GNSS_PATH_IONEX_{t}']).stem + ' ionex', cwd=wd)
+    if not os.path.exists(os.path.join(os.environ['GNSS_WORK'], 'rinex')):
+        print('Making symlink: rinex')
+        shellcmd('ln -s ' + Path(os.environ[f'GNSS_PATH_RINEX_{t}']).stem + ' rinex', cwd=wd)
+
+    print(f'Symlinks to sp3, ionex, rinex set from $GNSS_PATH_*_{t} paths')
+    # else:
+    #     shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_SP3_DAILY']).stem + ' sp3', cwd=wd)
+    #     shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_IONEX_DAILY']).stem + ' ionex', cwd=wd)
+    #     shellcmd('ln -s ' + Path(os.environ['GNSS_PATH_RINEX_DAILY']).stem + ' rinex', cwd=wd)
+    #     print('Symlinks to sp3, ionex, rinex set from $GNSS_PATH_*_DAILY paths')
 
 
     print_header('Finished initial setup.')

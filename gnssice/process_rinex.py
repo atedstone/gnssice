@@ -121,7 +121,7 @@ def cli():
     if args.overlap:
         print_header('Commence window overlaps')
    
-        rinex_files = glob(os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site, '*o'))
+        rinex_files = sorted(glob(os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site, '*o')))
         print('Found {n} files...'.format(n=len(rinex_files)))
         for f in rinex_files:
             rinex.window_overlap(f, st_timestart='220000', dh=28)
