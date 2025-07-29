@@ -143,7 +143,7 @@ def load_sort(args):
     # Load data and apply timestamp
     geod_store = []
     if args.geod_file is None:
-        path_to_data = os.path.join(os.environ['GNSS_WORK'], 'processed_track', args.site, '*.parquet')
+        path_to_data = os.path.join(os.environ['GNSS_PATH_TRACK_OUT'], args.site, '*.parquet')
         print(f'Searching GNSS_WORK dir... ({path_to_data})')
         files = glob(path_to_data)
     elif len(args.geod_file) == 1:
@@ -213,7 +213,7 @@ def cli():
     p = argparse.ArgumentParser('Export Level-1 Parquet file of GNSS GEOD data bales to Level-1 directory')
     p.add_argument('site', type=str, help='Name/identifier of site')
     
-    p.add_argument('-f', dest='geod_file', type=str, nargs='+', 
+    p.add_argument('-f', dest='geod_file', type=str, nargs='+', default=None,
         help='Path to GEOD parquet file(s) (output by conc_daily_geod.py), if provided overwrites automatic wildcard searching in GNSS_WORK dir of site')
     
     args = p.parse_args()

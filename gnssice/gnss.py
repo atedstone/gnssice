@@ -1117,7 +1117,7 @@ class Kinematic:
                             print('Rejected by RMS.')
                             keep = False
                             show_plot = True
-                        comment = 'Med.RMS: %s' %rms
+                        comment = f'Med.RMS: {rms:.2f}' 
                 
                 # If day passed automatically, prevent the plot from popping up
                 if use_auto_qa == True and keep == True:

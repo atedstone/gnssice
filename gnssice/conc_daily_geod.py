@@ -25,10 +25,13 @@ def concatenate_daily_geod(
     start_doy : int, 
     finish_doy : int, # inclusive
     outformat : str, 
-    exclude_doys : list
+    exclude_doys : list,
+    finp : None | str
     ) -> None:
 
-    output_fname = '%s_%s_%s_%s_%s_GEOD' %(rover, base, year, start_doy, finish_doy)
+    if finp is None:
+        finp = os.environ['GNSS_PATH_TRACK_OUT']
+    output_fname = os.path.join(finp, rover, '%s_%s_%s_%s_%s_GEOD' %(rover, base, year, start_doy, finish_doy))
 
     if outformat == 'tsv':
         sep = '\t'
@@ -56,7 +59,7 @@ def concatenate_daily_geod(
         try: 
             # First try new filename format
             saved_opts = dict(r=rover, b=base, y=year, d=str(doy).zfill(3))     
-            fname = '{r}_{b}_{y}_{d}_{ftype}.dat'.format(ftype='GEOD', **saved_opts)
+            fname = os.path.join(finp, rover, '{r}_{b}_{y}_{d}_{ftype}.dat'.format(ftype='GEOD', **saved_opts))
             if os.path.exists(fname):
                 data = gps.read_track_geod_file(fname)
             else:
@@ -91,7 +94,7 @@ def concatenate_daily_geod(
 
 def cli():
 
-    p = argparse.ArgumentParser('Concatenate daily TRACK GEOD files. Run in the folder containing the files.')
+    p = argparse.ArgumentParser('Concatenate daily TRACK GEOD files.')
 
     p.add_argument('base', type=str)
     p.add_argument('rover', type=str)
@@ -101,8 +104,9 @@ def cli():
 
     p.add_argument('-outformat', choices=['parquet', 'csv', 'tsv'], default='parquet')
     p.add_argument('-exclude_doys', nargs='*', type=int)
+    p.add_argument('-finp', type=str, default=None, help='Files input path (default is env $GNSS_PATH_TRACK_OUT).')
 
     args = p.parse_args()
     
     data = concatenate_daily_geod(args.base, args.rover, args.year, args.start_doy, args.finish_doy,
-        args.outformat, args.exclude_doys)
+        args.outformat, args.exclude_doys, args.finp)

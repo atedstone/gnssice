@@ -18,7 +18,9 @@ def cli():
     p.add_argument('geod_file', type=str, help='Filepath/name of GEOD parquet file from which to take origin coordinates')
     args = p.parse_args()
 
-    if os.path.exists('origin_%s.csv' %args.site):
+    output_fn = os.path.join(os.environ['GNSS_L2DIR'], args.site, 'origin_{0}.csv'.format(site))
+
+    if os.path.exists(output_fn):
         raise IOError('Origin file for this site already exists!')
 
     geod = pd.read_parquet(args.geod_file)
@@ -37,4 +39,4 @@ def cli():
 
     # save x,y,z.
     df = pd.DataFrame({'x0':[x], 'y0':[y], 'z0':[z], 'lat0':lat0, 'lon0':lon0})
-    df.to_csv('origin_%s.csv' %args.site, index=False)
+    df.to_csv(output_fn, index=False)

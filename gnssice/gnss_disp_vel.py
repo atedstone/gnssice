@@ -73,12 +73,8 @@ p = argparse.ArgumentParser('Kinematic GPS: filter positions, calculate \
     trajectories, calculate velocities. Output .h5 files of displacements, \
     CSV file of longer-term velocities, plots of data.')
 p.add_argument('site', type=str, help='Name/identifier of site')
-
-# p.add_argument('-f', dest='geod_file', type=str, nargs='+', 
-#     help='Path to GEOD parquet file(s) (output by conc_daily_geod.py)')
-
-p.add_argument('-optspath', type=str, default='', help='Location of options files if \
-    not current directory')
+p.add_argument('-optspath', type=str, default=None, help='Location of options files (origin, exclusions...) if \
+    not $GNSS_L2DIR')
 p.add_argument('-noexcl', action='store_true')
 p.add_argument('-nocorrect', action='store_true')
 p.add_argument('-noplot', action='store_true')
@@ -87,9 +83,6 @@ p.add_argument('-stake', action='store_true', help='Short-occupation stake mode.
     processing short-occupation fixes.')
 p.add_argument('-tz', type=str, help='Localise v_24h to timezone.')
 p.add_argument('-sample_freq', type=str, default='10s')
-p.add_argument('-noconc', action='store_true', help='By default, if multiple \
-    parquet files are specified then this script saves a new Parquet file \
-    containing them all. Give this flag to prevent the new Parquet file being created.')
 p.add_argument('-v6h', action='store_true', help='If set then also compute sliding 6h velocities for the site.')
 
 p.add_argument('-nbplot', type=str, default='widget', help='If running as a Notebook, \
@@ -143,13 +136,17 @@ else:
 
 
 # +
-WORKING_DIRECTORY = os.path.join(os.environ['GNSS_WORK'], args.site)
-os.chdir(WORKING_DIRECTORY)
-print('Working directory is now %s' %os.getcwd())
+#WORKING_DIRECTORY = os.path.join(os.environ['GNSS_WORK'], args.site)
+#os.chdir(WORKING_DIRECTORY)
+#print('Working directory is now %s' %os.getcwd())
 
 path_output_L2 = os.path.join(os.environ['GNSS_L2DIR'], args.site)
-Path(path_output_L2).mkdir(exist_ok=True)
+#Path(path_output_L2).mkdir(exist_ok=True)
 print(f'Level-2 Directory: {path_output_L2}')
+
+# By default, find the options files (e.g. exclusions) in the Level-2 directory.
+if args.optspath is None:
+    args.optspath = path_output_L2
 # -
 
 # ## Load Level-1 data
@@ -391,9 +388,6 @@ plt.errorbar(v_24h.index+pd.Timedelta(hours=12), v_24h.v_24h_myr, yerr=v_24h.unc
 
 plt.figure()
 plt.errorbar(v_24h.index, v_24h.v_24h_myr, yerr=v_24h.unc_myr, elinewidth=0.5, ecolor='silver', drawstyle='steps-post')
-
-plt.figure()
-geod.loc['2023-08'].SigE.plot(marker='.', linestyle='none')
 
 filtd_disp
 

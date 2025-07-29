@@ -235,7 +235,7 @@ If you use `setup_wd` (next section) then all the folders in the `gnss.sh` file 
 
 ### Preparations
 
-**Easy preparations:** `source gnss.sh` then `setup_wd` to setup your working directory according to your environment variables, including creating all the folders needed to get started with analysis. It will download all SP3, IONEX and VMF3 files for your period of interest, and overlap them if requested. If you subsequently need to extend the time series of these files, just run the command again with the updated start and end days.
+**Easy preparations:** `source gnss.sh` then `setup_wd` to setup your working directory according to your environment variables, including creating all the folders needed to get started with analysis. It will download all SP3, IONEX and VMF3 files for your period of interest, and overlap them if requested. (This could take several tens of minutes if the period of interest is a whole year). If you subsequently need to extend the time series of these files, just run the command again with the updated start and end days.
 
 **To overlap or not?** Short answer = yes, overlap. There is usually no good reason not to. This workflow will handle making overlapping files for you if you ask it to (RINEX, SP3 and IONEX files).
 
@@ -488,11 +488,9 @@ The RINEX files constitute Level-0 data for archival. Compress these files to Co
 
 The GEOD TRACK output files need to be combined together, removing the overlapping hours.
 
-Use `conc_daily_geod` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation near the start of this readme). 
+Use `conc_daily_geod` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation earlier in this readme). These Parquet files are created from data stored in $GNSS_PATH_TRACK_OUT, which is also where the Parquet files get saved to.
 
-Then export all the data batches to a continuous Parquet file using `export_level1.py`, more details as follows:
-
-In the simple case of collecting data once a year and processing using the same base-rover combination, there will be two data batches:
+In the simple case of collecting data from the field in spring each year and processing using the same base-rover combination, there will be two data batches:
 
 1. rover_base_year1_startDOY_endDOY
 2. rover_base_year2_startDOY_endDOY
@@ -501,7 +499,17 @@ However, if a different base station needs to be used for certain periods, there
 
 1. rover_bas1_year1_100_200
 2. rover_bas2_year1_200_365
-3. rover_bas1_year2_0_100
+3. rover_bas1_year2_1_100
+
+
+### Export to Level-1 product
+
+We consider the Level-1 data product to be a continuous Parquet file containing all data from all batches since a site was first established. You can generate the Level-1 Parquet file either:
+
+1. Using all the individual data batch Parquet files, or
+2. Providing an existing Level-1 Parquet file and only the new data batches.
+
+Use the command line tool `export_level1` in both cases. The Level-1 data are saved in `$GNSS_L1DIR/<site>`.
 
 
   
@@ -511,15 +519,12 @@ However, if a different base station needs to be used for certain periods, there
 
 As well as installing the package (see very top of this README), you need the following directory structure. 
 
-* `GNSS_WORK`: sub-structure contains:
-	* `{site}`
-		* `geod_bales/`
-			* `*GEOD.parquet`
+* `GNSS_L1DIR` : location to store Level-1 data
+* `GNSS_L2DIR` : location to store Level-2 data
+ 	* `{site}`
 		* `rotation_{site}.dat` (if already created)
 		* `origin_{site}.csv` (if already created)
 		* `exclusions_{site}.csv` (if needed)
-* `GNSS_L1DIR` : location to store Level-1 data
-* `GNSS_L2DIR` : location to store Level-2 data
 
 Set the paths to these folders using environment variables, which are used by the processing scripts to find and export data:
 
@@ -529,7 +534,7 @@ Set the paths to these folders using environment variables, which are used by th
 
 ### Site origin
 
-If older data for this site has already been post-processed then a file, `origin_<site>.csv` will have been generated. Place this file in the working directory.
+If older data for this site has already been post-processed then a file, `origin_<site>.csv` will have been generated. Place this file in $GNSS_L2DIR as indicated above.
 
 If this is the first occasion of processing for this site,  run 
 
@@ -545,16 +550,14 @@ It's best to write your own script to do this on a case by case basis.
 
 ### Displacements and velocities of batch(es)
 
-**Level-1 data generation:** Use `export_level1.py` to output a complete GEOD parquet file. This forms the Level-1 dataset.
-
 **Level-2 data generation:**  Use `gnss_disp_vel.py`. This can be run on the command line or as a Notebook.
 
-If older data for this site have already been post-processed then a file `rotation_<site>.dat` will exist, defining the coefficients to rotate the coordinates into along/across-TRACK displacement. Place this file in the working directory.
+If older data for this site have already been post-processed then a file `rotation_<site>.dat` will exist, defining the coefficients to rotate the coordinates into along/across-TRACK displacement. Place this file in `$GNSS_L2DIR` as indicated above.
 
 Some hints on a workable processing strategy:
 
 * Use the script "iteratively" to identify periods which should be excluded.
-* Add exclusion periods to a file named `exclusions_<site>.csv`, located in your working directory (or specify elsewhere with the `-optpath` option of `gnss_disp_vel.py`).
+* Add exclusion periods to a file named `exclusions_<site>.csv`, located in `$GNSS_L2DIR` (or specify elsewhere with the `-optpath` option of `gnss_disp_vel.py`).
 * Re-run the script.
 * If corrections due to pole re-drilling are needed then this functionality will first need to be implemented, as it was not (yet) needed for the high-elevation ice velocities campaign!
 
@@ -562,7 +565,7 @@ This script can be used in at least two or three ways:
 
 1. Processing a batch of continuous occupation data. Supply just one parquet file.
 2. For a very short data batch - i.e. where a site has been re-occupied for only minutes to hours - use `gnss_disp_vel.py` with the `-stake` option. This disables the smoothing procedures, as they are only applicable to longer time series data. In this case only `xyz` data will be saved to disk.
-3. Or let the script process both continuous and daily occupation data automatically. Supply all the input parquet files, listed in time order. Do not provide `-stake`. Check the messages to make sure that each period has been identified correctly.
+3. Or let the script process both continuous and daily occupation data automatically. Do not provide `-stake`. Check the messages to make sure that each period has been identified correctly.
 
 Running option 3 within an ipython terminal:
 
@@ -575,7 +578,7 @@ The script applies different filtering and averaging approaches depending on whe
 
 ### Estimating seasonal and annual displacements
 
-This can be considered an analysis task.  See `seasonal_annual_disp.py`.
+Use `seasonal_annual_disp.py` to produce CSV files per-site of seasonal and annual velocities and displacements.
 
 
 ### Internal archival/retention
@@ -610,9 +613,9 @@ Leica:
 GVT:
 
 - Multi-constellation, so need multi-c sp3 files
-- RINEX3 files, so need to use gfzrnx
-- Need to tell TRACK which signals to use (with obs_file)
-- Need to tell TRACK which constellations to use (with tr_gnss)
+- RINEX3 files, so need to use `gfzrnx`
+- Need to tell TRACK which signals to use (with `obs_file`)
+- Need to tell TRACK which constellations to use (with `tr_gnss`)
 
 
 ### Telling TRACK which observables to use
