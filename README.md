@@ -266,7 +266,11 @@ Sometimes 3rd party base files can be downloaded directly from public archives u
 sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely
 ```
 
-If files have `*.<yy>o` suffix you're all set, otherwise, if they are zipped, unzip the compressed rinex files using 7zip or whatever. Then convert to normal rinex i.e. from `*.10d` to `*.10o`, using CRX2RNX.
+In Greenland, GNET stations can often serve as the base for post-processing. These data are publicly available via the Danish Government, https://dataforsyningen.dk/data/4804. Data access is via FTP (ftps://ftp.dataforsyningen.dk/GNSS/GRL) following account registration at the Danish Govt. link above. Use an FTP client such as FileZilla to download the files of interest. You will likely need to download the 1-second resolution files. You may then need to reduce them to 10-second resolution using a tool such as `gfzrnx`.
+
+Data from stations maintained by the Geological Survey of Denmark and Greenland (GEUS), e.g. at Point 660, can in principle be obtained from the GEUS DataVerse, but if unavailable then individual contact may be needed.
+
+If files have `*.<yy>o` suffix you're all set, otherwise, if they are zipped, unzip the compressed RINEX files. Then convert to normal RINEX i.e. from `*.10d` to `*.10o`, using CRX2RNX.
 
 ```bash	
 for f in *; do
@@ -675,7 +679,60 @@ rx.window_overlap("file.dat","22:00:00",28)
 Email exchange between AJT and MAK, December 2013-January 2014.
 "The other thing that can cause this sort of numerical instability is that the site motion is too tightly constrained. It turns out that is what it looks like was resulting in the NaNs. After fiddling for a couple of days it seems likely there are some other issues as well, and I think the receiver is suspect. I've copied below a .cmd file that seemed to produce sensible results. I think the main problem here is that the pseudorange data are very noisy, and as a result too many cycle slips are flagged and incorrect ambiguities are being fixed. To overcome this I changed the noise for the pseudoranges to 10m and modified some thresholds for detecting slips and fixing them to integers. "
 
+Command file:
+```
+Track.cmd:
 
+  levb levb_1170_ol.12o F
+  lev7 lev7_1170_ol.12o K
+
+ NAV_FILE igc16854.sp3 SP3
+
+ MODE LONG
+
+ SITE_POS
+ levb    1595616.0236   -1915157.8747    5851458.5156
+ lev7    1603216.7620   -1898052.0520    5855530.7550
+
+ site_stats
+  lev7 10 10 10 1 1 1
+
+ atm_stats
+  levb 0.0 0.0000 
+  lev7 0.2 0.0001
+
+ ANTE_OFF
+   levb .0000  .0000 0.0000 LEIAX1202GG     NONE C
+   lev7 .0000  .0000 0.0000 LEIAT504        NONE C
+ 
+ DATA_NOISE 0.005 0.005 10 10  0.5 
+
+ RMS_EDIT_TOL 2.5
+
+ MWWL_JUMP 20
+
+ ANTMOD_FILE igs08_1771_plus.atx
+
+ DCB_FILE dcb.dat
+
+ BF_SET  4  100
+
+ DATA_TYPE  LC
+
+ SEARCH_TYPE none
+
+ FLOAT_TYPE 1 2 LC 0.25 0.5 0.01 0.5 20
+
+ BACK_TYPE SMOOTH
+
+ ION_STATS 1.3 1 0.5 350 400
+
+ OUT_TYPE geod+neu
+
+ CUT_OFF 15
+
+ INTERVAL 10
+ ```
 
 ## Credits
 
