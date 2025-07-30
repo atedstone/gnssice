@@ -306,11 +306,11 @@ Ensure that the TRACK command file is correct for the site you are processing. B
 	* `<base>` is the 4-letter base station identifier, e.g. rusb, klsq
 	* `<rcvtype>` refers to the relevant entry in the receivers lookup table `TRACK_CMD_RCVR` in `gnss.py`. E.g. for a cryologger GVT use the value `gvt`.
 * Check that the `site_pos` for the base station is correct.
-* Ensure that the stated DCB file is available.
+* Ensure that the stated DCB file is available. Remember, this should be up to date.
 * Ensure that the `ante_off` settings are correct 
 	- Check that the antenna set in the command file matches the antenna indicated in a RINEX file header for the site.
 	- Check that the receiver type (last argument of `ante_off`) is correct
-* Check that the stated antmod_file is available.
+* Check that the stated antmod_file is available. Remember, this should be up to date.
 		
 	
 #### Convert the raw files to RINEX
