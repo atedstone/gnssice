@@ -28,6 +28,20 @@ ELLPS_B = 6356752.3142
 ELLPS_E2 = 1.0 - math.pow((ELLPS_B/ELLPS_A), 2)
 
 
+def update_legacy_geod_col_names(df):
+    return df.rename(columns={
+            'Latitude':'Latitude_deg', 
+            'Longitude':'Longitude_deg', 
+            'Height':'Height_m', 
+            'SigN':'SigN_cm', 
+            'SigE':'SigE_cm', 
+            'SigH':'SigH_cm', 
+            'RMS':'RMS_mm', 
+            'Atm':'Atm_mm', 
+            'plus_minus':'plus_minus_mm' 
+            })   
+
+
 def create_time_index(
     data : pd.DataFrame
     ) -> pd.DatetimeIndex:
@@ -83,15 +97,15 @@ def calculate_local_neu(
 
     ## Transform ellipsoidal coordinates to cartesian
     # First convert to radians
-    tmp_y = data['Latitude'] * (math.pi/180)
-    tmp_x = data['Longitude'] * (math.pi/180)
+    tmp_y = data['Latitude_deg'] * (math.pi/180)
+    tmp_x = data['Longitude_deg'] * (math.pi/180)
     # Convert to XYZ
-    xyz = ell2xyz(tmp_y, tmp_x, data['Height'])
+    xyz = ell2xyz(tmp_y, tmp_x, data['Height_m'])
 
     ## Transform absolute cartesian coordinates to local origin cartesian
-    dX = xyz['x'] - x0
-    dY = xyz['y'] - y0
-    dZ = xyz['z'] - z0
+    dX = xyz['x_m'] - x0
+    dY = xyz['y_m'] - y0
+    dZ = xyz['z_m'] - z0
 
     ## Transform to Local Geodetic: North-East-Up.
     # Matrix reshaping is to satisfy the requirements of the function.
@@ -102,7 +116,7 @@ def calculate_local_neu(
     # Format to dataframe
     neu = pd.DataFrame(neu, index=data.index)
     # Keep z named as z.
-    neu = neu.rename({'y':'North', 'x':'East'}, axis='columns')
+    neu = neu.rename({'y_m':'North_m', 'x_m':'East_m'}, axis='columns')
     return neu
     
 
@@ -156,10 +170,10 @@ def filter_positions(
     """
     
     # Filter by RMS
-    data = data[data['RMS'] <= thresh_rms]
+    data = data[data['RMS_mm'] <= thresh_rms]
 
     # Filter by height std. dev.
-    data = data[data['SigH'] <= thresh_h]
+    data = data[data['SigH_cm'] <= thresh_h]
 
     # Filter by removing TRACK-interpolated values
     data = data[data['N'] > thresh_N]
@@ -188,7 +202,7 @@ def calculate_displacement_trajectory(
     # A.T. 2022-07-25 - not sure why the divide by length of year is needed.
     X = data['Fract_DOY'] / YEAR_LENGTH_DAYS
     X = sm.add_constant(X)
-    y = data['East']
+    y = data['East_m']
     rx = sm.OLS(y, X).fit()
     # Take the slope parameter
     vel_e = rx.params[0]
@@ -196,7 +210,7 @@ def calculate_displacement_trajectory(
     # North
     X = data['Fract_DOY'] / YEAR_LENGTH_DAYS
     X = sm.add_constant(X)
-    y = data['North']
+    y = data['North_m']
     ry = sm.OLS(y, X).fit()
     # Take the slope parameter
     vel_n = ry.params[0]
@@ -242,7 +256,7 @@ def rotate_to_displacements(
     :param R1: 2x2 rotation matrix (e.g. output of create_rot_matrix())
     """
     xy = np.dot(R1, np.array([east, north])).T
-    return pd.DataFrame(xy, index=east.index, columns=('x', 'y'))
+    return pd.DataFrame(xy, index=east.index, columns=('x_m', 'y_m'))
 
 
 def regularise(
@@ -261,12 +275,12 @@ def regularise(
     """
     if add_flag is not None:
         flag = pd.Series(0, index=data.index, name=add_flag, dtype=np.int32)
-        flag[data.x.isna()] = np.nan
+        flag[data.x_m.isna()] = np.nan
         flag = flag.resample(interval).asfreq()
 
     data = data.resample(interval).asfreq()
     
-    data_iterp = data.filter(items=('x','y','z'), axis='columns').interpolate()
+    data_iterp = data.filter(items=('x_m','y_m','z_m'), axis='columns').interpolate()
     data_iterp = pd.concat((data_iterp, flag), axis='columns')
     data_iterp[add_flag][data_iterp[add_flag].isna()] = 1
 
@@ -277,7 +291,7 @@ def remove_displacement_outliers(
     data,
     interval : str,
     iterations : int=2,
-    mt : dict={'x':0.08, 'y':0.04, 'z':0.15},
+    mt : dict={'x_m':0.08, 'y_m':0.04, 'z_m':0.15},
     median_win : str='2h',
     sigma_mult : float=2
     ):
@@ -297,19 +311,19 @@ def remove_displacement_outliers(
     for n in range(0,iterations):
         print('Median Filter: Iteration %s' %n)
         if n == 0:
-            smoothed = data.filter(items=('x','y','z'), axis=1) \
+            smoothed = data.filter(items=('x_m','y_m','z_m'), axis=1) \
                         .resample('15Min').first() \
                         .rolling('24h', center=True).median() \
                         .resample(interval).asfreq() \
                         .interpolate()
             diffs = (data - smoothed).apply(np.abs)
             data = data[~(
-                (diffs['x'] >= mt['x']) | 
-                (diffs['y'] >= mt['y']) | 
-                (diffs['z'] >= mt['z'])
+                (diffs['x_m'] >= mt['x_m']) | 
+                (diffs['y_m'] >= mt['y_m']) | 
+                (diffs['z_m'] >= mt['z_m'])
                 )]
         else:
-            median = data.filter(items=('x','y','z'), axis=1) \
+            median = data.filter(items=('x_m','y_m','z_m'), axis=1) \
                         .rolling(median_win, center=True).median() 
             diffs = (data - median).apply(np.abs) 
             sigma = median.rolling(median_win, center=True).std()
@@ -318,9 +332,9 @@ def remove_displacement_outliers(
             # Remove differences from the median that are larger than the 
             # median's sigma.
             data = data[~(
-                (diffs['x'] >= sigma_['x']) | 
-                (diffs['y'] >= sigma_['y']) | 
-                (diffs['z'] >= sigma_['z'])
+                (diffs['x_m'] >= sigma_['x_m']) | 
+                (diffs['y_m'] >= sigma_['y_m']) | 
+                (diffs['z_m'] >= sigma_['z_m'])
                 )]
 
     return data
@@ -344,9 +358,9 @@ def smooth_displacement(
     gaus_coef = gaussfiltcoef((1/interval),(1/gauss_win_secs))
     gaus_coef_z = gaussfiltcoef((1/interval),(1/gauss_win_secs * gauss_win_z_mult))
     # Apply filters
-    xs = pd.Series(filtfilt(gaus_coef, 1, data.x), index=data.index, name='x')
-    ys = pd.Series(filtfilt(gaus_coef, 1, data.y), index=data.index, name='y')
-    zs = pd.Series(filtfilt(gaus_coef_z, 1, data.z), index=data.index, name='z')
+    xs = pd.Series(filtfilt(gaus_coef, 1, data.x_m), index=data.index, name='x_m')
+    ys = pd.Series(filtfilt(gaus_coef, 1, data.y_m), index=data.index, name='y_m')
+    zs = pd.Series(filtfilt(gaus_coef_z, 1, data.z_m), index=data.index, name='z_m')
     return pd.concat((xs,ys,zs), axis='columns')
 
 
@@ -413,44 +427,101 @@ def detrend_z(
     :returns: (detrended z, slope)
     """
     if slope is None:
-        X = data['x']
+        X = data['x_m']
         X = sm.add_constant(X)
-        y = data['z']
+        y = data['z_m']
         rz = sm.OLS(y, X).fit()
         slope = rz.params[2]
 
-    z_detr = data['z'] - data['x'] * slope
+    z_detr = data['z_m'] - data['x_m'] * slope
     return (z_detr, slope)
 
 
-def calculate_uncertainty(
+def calculate_epoch_hoz_sigma_uncertainty(
+    df : pd.DataFrame,
+    period : str='1D',
+    half_window : str='3h'
+    ) -> pd.Series:
+    """ Calculate the ~epoch horizontal positional uncertainty using sigma info.
+
+    This function estimates the per-epoch horizontal position uncertainty by 
+    taking the mean of each of SigmaE and SigmaN output by Track at each epoch.
+    The epoch locations are defined by resampling `df` with `period`. At each 
+    epoch, we calculate the mean SigmaE and SigmaN within a temporal window 
+    centred on the epoch, window duration defined by `half_window`. We then 
+    combine the N and E components using the root sum of squares, delivering a 
+    combined horizontal uncertainty.
+     
+    :param df: pd.DataFrame containing columns SigE_cm, SigN_cm, with DatetimeIndex.
+    :param period: str, Pandas-style time frequency used to resample pd.DataFrame 
+        to new epoch frequency.
+    :param half_window: str, Pandas-style time frequency which defines half the 
+        length of the window over which to average SigN, SigE.
+
+    :returns: pd.Series of uncertainties in metres.
+    """
+    
+    def _hoz_component_unc(ts):
+        """ Calculate the average uncertainty of a given horizontal component based on sigma."""
+
+        def _epoch_sigma_mean(ts):
+            if len(ts) > 1:
+                return ts.loc[:ts.index[0]+pd.Timedelta(half_window)].mean()
+            else:
+                return np.nan
+
+        # Multiplier converts cm to m
+        return ts.resample(period, offset=f'-{half_window}').apply(_epoch_sigma_mean).shift(freq=half_window) * 0.01
+
+    uncs_e = _hoz_component_unc(df['SigE_cm'])
+    uncs_n = _hoz_component_unc(df['SigN_cm'])
+    uncs = np.sqrt(uncs_e**2 + uncs_n**2)    
+    return uncs
+
+
+def calculate_period_vel_uncertainties(
     x : float | pd.Series,
     velocity : float | pd.Series, 
-    epoch_uncertainty: float=0.01
+    epoch_uncertainty: pd.Series | tuple=(0.01, 0.01) 
     ) -> pd.Series:
-    """ Calculate the uncertainty in the velocity over the given time period.
+    """ Calculate the velocity uncertainties per given time period.
 
     :param x: Series of displacements, or float displacement
     :param velocity: Series of velocities, with timestamps matching x, or float velocity
-    :param epoch_uncertainty: the 1-epoch positional uncertainty.
+    :param epoch_uncertainty: the positional uncertainty at each epoch. 
+        either tuple (t0, t1) or Pandas series of time points, which get shifted appropriately.
     :returns: pd.Series
 
-    For reference, see also Lokkegaard et al. (2024, Nat.Comms. Earth & Env.).
+    For reference, see Lokkegaard et al. (2024, Nat.Comms. Earth & Env.).
     """
     if isinstance(x, (collections.abc.Sequence, pd.Series, pd.DataFrame)):
         x = x.diff(1)
-    return (np.sqrt(epoch_uncertainty**2 + epoch_uncertainty**2) / np.abs(x)) * velocity
+
+    if isinstance(epoch_uncertainty, pd.Series):
+        eu1 = epoch_uncertainty
+        # Shifting by -1 brings the next time point into this time point
+        # Which produces a time series where the index denotes the start of the time period
+        eu2 = epoch_uncertainty.shift(-1)
+    else:
+        eu1, eu2 = epoch_uncertainty
+
+    return (np.sqrt(eu1**2 + eu2**2) / np.abs(x)) * velocity
 
 
-def calculate_daily_velocities(
+def calculate_period_velocities(
     x : pd.Series,
+    period: str='24h',
     method : str='epoch',
     tz : str=None,
     flag_iterp : pd.Series=None,
-    calc_uncertainty : bool=True
+    calc_uncertainty : bool=True, 
+    sigmas : pd.DataFrame=None,
+    **kwargs
     ) -> pd.Series:
     """
-    Calculate 24-h along-track velocity using average position in first hour of each day.
+    Calculate along-track velocity using either (a) first epoch or (b) average position in the 
+    first hour of each period. By default, produces daily velocity time series.
+    
     Units metres/year.
 
     if tz is provided, first localise the (assumed UTC) measurements to local
@@ -460,32 +531,47 @@ def calculate_daily_velocities(
     :param method: str, either 'epoch' to difference between epochs separated by 24 h, 
     or 'average' to difference the mean position in the first hour of each day.
     :param tz: A 'tz-database' time zone string, e.g. America/Nuuk.
+    :param flag_iterp:
+    :param calc_uncertainty: if True, calculate uncertainty.
+    :param sigmas: when calc_uncertainty is True, providing a dataframe with
+        SigN and SigE columns will return uncertainties based on epoch-by-epoch
+        sigma. Provide kwarg `half_window` to override defualt. 
+        If None, 'standard' fixed epoch uncertainty will be used; override 
+        default by supplying the kwarg `epoch_uncertainty` (see 
+        .calculate_period_vel_uncertainties).
     """
     if tz is not None and tz != '':
         x = x.tz_localize(tz)
 
     if method == 'epoch':
-        x = x.resample('24h').first()
+        x = x.resample(period).first()
     elif method == 'average':
-        x = x.resample('24h').apply(lambda x: x[x.index.hour == 0].mean())
+        x = x.resample(period).apply(lambda x: x[x.index.hour == 0].mean())
     else:
         raise ValueError('Unknown option provided for `method`.')
     
-    v_24h = (x.shift(1) - x) * YEAR_LENGTH_DAYS
+    # Shifting by -1 brings the next time point into this time point
+    # Which produces a time series where the index denotes the start of the time period
+    # and the stated velocity is for the period index:index+1
+    v = np.abs(x.shift(-1) - x) * v_mult(period) 
 
     if flag_iterp is not None:
         if tz is not None and tz != '':
             flag_iterp = flag_iterp.tz_localize(tz)
-            f = flag_iterp.resample('D').first()
-            return pd.concat([v_24h, f], axis='columns')
+            f = flag_iterp.resample(period).first()
+            return pd.concat([v, f], axis='columns')
 
-    if calc_uncertainty:
-        v_24h.name = 'v_24h_myr'
-        unc = calculate_uncertainty(x, v_24h)
-        v_24h = v_24h.to_frame()
-        v_24h['unc_myr'] = unc
+    if calc_uncertainty: 
+        v.name = 'v_myr'
+        if isinstance(sigmas, pd.DataFrame):
+            epoch_uncs = calculate_epoch_hoz_sigma_uncertainty(sigmas, period, **kwargs)
+            unc = calculate_period_vel_uncertainties(x, v, epoch_uncertainty=epoch_uncs)   
+        else:
+            unc = calculate_period_vel_uncertainties(x, v, **kwargs)
+        v = v.to_frame()
+        v['unc_myr'] = unc
 
-    return v_24h
+    return v
    
 
 def v_mult(
@@ -552,9 +638,9 @@ def ell2xyz(lat,lon,h,a=ELLPS_A,e2=ELLPS_E2):
     z = (v * (1 - e2) + h) * np.sin(lat)   
             
     toret = {}
-    toret['x'] = x
-    toret['y'] = y
-    toret['z'] = z
+    toret['x_m'] = x
+    toret['y_m'] = y
+    toret['z_m'] = z
     return toret
     
 
@@ -617,9 +703,9 @@ def ct2lg(dX,dY,dZ,lat,lon):
     dz = np.sum(RR.T * np.stack((dX,dY,dZ),axis=1),axis=1)
     
     toret = {}
-    toret['x'] = dx
-    toret['y'] = dy
-    toret['z'] = dz
+    toret['x_m'] = dx
+    toret['y_m'] = dy
+    toret['z_m'] = dz
     return toret
     
     

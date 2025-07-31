@@ -161,6 +161,9 @@ def load_sort(args):
             geod = geod.drop(labels=['YY', 'DOY', 'Seconds'], axis='columns')
         else:
             print('The parquet file provided appears to be a multi-batch file, continuing on this basis...')
+        
+        geod = pp.update_legacy_geod_col_names(geod)
+        
         geod_store.append(geod)
     
     geod = pd.concat(geod_store, axis=0)

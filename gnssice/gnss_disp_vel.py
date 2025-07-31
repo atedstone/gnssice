@@ -160,7 +160,10 @@ elif len(f) > 1:
 else:
     f = f[0]
 print(f'Loading Level-1 file: {f}...')
+#f = '/scratch/hislide-processing/lev6_2023_127_2023_273_geod.parquet'
+#f = '/scratch/hislide-level1/lev5/lev5_2021_129_2023_128_geod.parquet'
 geod = pd.read_parquet(f.strip())
+geod = pp.update_legacy_geod_col_names(geod)
 
 # ## Apply user pole corrections
 
@@ -202,7 +205,7 @@ else:
     np.savetxt(rfile, r1)
 
 print('Doing rotation')
-xy = pp.rotate_to_displacements(geod_neu['East'], geod_neu['North'], r1)
+xy = pp.rotate_to_displacements(geod_neu['East_m'], geod_neu['North_m'], r1)
 geod_neu_xy = pd.concat((geod_neu, xy), axis=1)
 
 # ## Apply user exclusions
@@ -216,7 +219,7 @@ if not args.noexcl and os.path.exists(exclusions_file):
 # Here, we primarily remove 'bad' data according to TRACK outputs, and apply median-based-filtering.
 
 if args.stake:
-    xyz = geod_neu_xy[geod_neu_xy.exclude == False].filter(items=('x', 'y', 'z'), axis='columns')
+    xyz = geod_neu_xy[geod_neu_xy.exclude == False].filter(items=('x_m', 'y_m', 'z_m'), axis='columns')
 
 if not args.stake:
     ## Identify periods of (i) continuous occupations, (ii) daily occupations, (iii) no occupation
@@ -257,13 +260,13 @@ if not args.stake:
         # Do initial filtering
         print('Filtering out bad positions (according to RMS etc)')
         df = pp.filter_positions(df)
-        df = pp.remove_displacement_outliers(df, args.sample_freq, iterations=2)
+        df = pp.remove_displacement_outliers(df, args.sample_freq, iterations=2, median_win='6h')
         return df
 
     print('*** Checking for different occupation periods ***')
     # Count number of daily observations
-    counts = geod_neu_xy[geod_neu_xy.exclude == False].x.resample('1D').count().to_frame()
-    counts['type'] = counts['x'].apply(occ_type)
+    counts = geod_neu_xy[geod_neu_xy.exclude == False].x_m.resample('1D').count().to_frame()
+    counts['type'] = counts['x_m'].apply(occ_type)
     counts['type_roll'] = counts['type'].rolling('3D', center=True).max() #apply(lambda x: mode(x)[0])
 
     # Find change dates
@@ -347,10 +350,10 @@ if not args.stake:
 
     # Do Gaussian filtering - this df does not have interpolated column
     print('Gaussian filtering whole series')
-    filtd_disp = pp.smooth_displacement(filtd_i, 7200) #7200secs ~ 2hours
+    filtd_disp = pp.smooth_displacement(filtd_i, 7200*3) #7200secs ~ 2hours
 
     # Sub-set data to retain only original data samples (modified by Gaussian filtering)
-    xyz = filtd_disp.filter(items=('x', 'y', 'z'), axis='columns')
+    xyz = filtd_disp.filter(items=('x_m', 'y_m', 'z_m'), axis='columns')
     xyz = xyz[filtd_i.interpolated == 0]
 
 # ## Calculate velocities
@@ -358,16 +361,17 @@ if not args.stake:
 if not args.stake:
     # Calculate velocities
     print('Calculating velocities')
-    v_24h = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz, method='epoch')
+    v_24h = pp.calculate_period_velocities(filtd_disp['x_m'], '1D', tz=args.tz, method='epoch', sigmas=filtd.filter(items=['SigE_cm', 'SigN_cm'], axis='columns'))
+    v_5d = pp.calculate_period_velocities(filtd_disp['x_m'], '5D', tz=args.tz, method='epoch', sigmas=filtd.filter(items=['SigE_cm', 'SigN_cm'], axis='columns'))
     maxperday = pd.Timedelta('1D') / pd.Timedelta(args.sample_freq)
     dayperc = 100 / maxperday * filtd_i.interpolated[filtd_i.interpolated == 0].resample('1D').count()
     dayperc.name = 'obs_cover_percent'
     v_24h = pd.concat((v_24h, dayperc), axis=1)
 
     # Longer-term velocities, following Doyle 2014 approach
-    d6h = filtd_disp.resample('6h').mean()
-    p15d = d6h.resample('15D').first()
-    v15d = (p15d.x.shift(1) - p15d.x) * pp.v_mult('15D')
+    # d6h = filtd_disp.resample('6h').mean()
+    # p15d = d6h.resample('15D').first()
+    # v15d = (p15d.x_m.shift(1) - p15d.x_m) * pp.v_mult('15D')
 
     # Regression-based approach
     # !!TODO!! implement a mix of Doyle for continuous and this for daily occs...
@@ -377,28 +381,49 @@ if not args.stake:
     # only currently works with geod_neu_xy. What would a good filtering strategy for
     # daily data look like?
     # Or do these need to be reprocessed by TRACK with ambiguities fixed?
-    p30d = filtd.x.resample('30D').apply(pp.position_by_regression)
-    v30d = (p30d.shift(1) - p30d) * pp.v_mult('30D')
+    # p30d = filtd.x_m.resample('30D').apply(pp.position_by_regression)
+    # v30d = (p30d.shift(1) - p30d) * pp.v_mult('30D')
 
 
-v_24h
+# +
+# import statsmodels.api as sm
+# def detrend(df):
+#     X = sm.add_constant(df.index.to_julian_date())
+#     y = df['x']
+#     rz = sm.OLS(y, X).fit()
+#     slope = rz.params['const']
+#     detr = df['x'] - (rz.params['x1']*df.index.to_julian_date() + rz.params['const'])
+#     return detr
+
+# store = {}
+# for date in pd.date_range('2023-07-01','2023-09-01'):
+#     store[date] = detrend(geod_neu_xy.loc[date-pd.Timedelta(hours=1):date+pd.Timedelta(hours=1)]).std()
+# uncs = pd.Series(store)
+
+# def unc(df):
+#     #print(df.index[0], df.index[-1])
+#     if len(df) > 1:
+#         return df.loc[:df.index[0]+pd.Timedelta(hours=3)].mean()
+#     else:
+#         return np.nan
+# uncs_e = filtd['SigE_cm'].resample('1D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
+# uncs_n = filtd['SigN_cm'].resample('1D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
+# uncs = np.sqrt(uncs_e**2 + uncs_n**2)
+# v_24h_new = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz, method='epoch', epoch_uncertainty=uncs)
+
+# uncs_e = filtd['SigE'].resample('5D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
+# uncs_n = filtd['SigN'].resample('5D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
+# uncs = np.sqrt(uncs_e**2 + uncs_n**2)
+# v_5d = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz, method='epoch', epoch_uncertainty=uncs, win='5D')
+# -
 
 plt.figure()
-plt.errorbar(v_24h.index+pd.Timedelta(hours=12), v_24h.v_24h_myr, yerr=v_24h.unc_myr, elinewidth=0.5, ecolor='silver', drawstyle='steps-mid')
-
-plt.figure()
-plt.errorbar(v_24h.index, v_24h.v_24h_myr, yerr=v_24h.unc_myr, elinewidth=0.5, ecolor='silver', drawstyle='steps-post')
-
-filtd_disp
-
-plt.figure()
-geod_neu_xy.loc['2023-08'].x.plot(marker='.', linestyle='none')
-filtd.loc['2023-08'].x.plot(marker='.', linestyle='none')
-filtd_disp.loc['2023-08'].x.plot(linewidth=0.8)
+plt.errorbar(v_24h.index+pd.Timedelta(hours=12), v_24h.v_myr, yerr=v_24h.unc_myr, elinewidth=0.5, ecolor='silver', drawstyle='steps-mid')
 
 
 plt.figure()
-geod.loc['2023-08'].SigE.plot(marker='.', linestyle='none')
+plt.errorbar(v_24h.index+pd.Timedelta(hours=12), v_24h.v_myr, yerr=v_24h.unc_myr, elinewidth=0.2, ecolor='tab:blue', drawstyle='steps-mid', alpha=0.5)
+plt.errorbar(v_5d.index+pd.Timedelta(hours=(5*24)/2), v_5d.v_myr, yerr=v_5d.unc_myr, elinewidth=1, color='k', ecolor='k', drawstyle='steps-mid', linewidth=2)
 
 # ## Export to disk
 
@@ -463,7 +488,7 @@ if not args.noplot:
 
 if not args.noplot and args.stake:
     plt.figure()
-    plt.plot(geod_neu_xy.x, geod_neu_xy.y, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
+    plt.plot(geod_neu_xy.x_m, geod_neu_xy.y_m, '.', color='gray', alpha=0.3, label='GEOD (after exclusions)')
     plt.title('Stake/Quick-Pos X-Y')
     plt.savefig('%s_xy.png' %output_L2_base, dpi=300)
 
@@ -483,9 +508,9 @@ else:
 # Plot X versus Y
 if do_plot:
     plt.figure()
-    plt.plot(geod_neu_xy.x, geod_neu_xy.y, '.', color='gray', alpha=0.3, label=label_geod)
-    plt.plot(xyz.x, xyz.y, '.', color='tab:purple', alpha=0.3, label=label_xyz)
-    plt.plot(filtd.x, filtd.y, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+    plt.plot(geod_neu_xy.x_m, geod_neu_xy.y_m, '.', color='gray', alpha=0.3, label=label_geod)
+    plt.plot(xyz.x_m, xyz.y_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
+    plt.plot(filtd.x_m, filtd.y_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
     plt.xlabel('Metres')
     plt.ylabel('Metres')
     plt.title('%s X - Y' %args.site)
@@ -498,9 +523,9 @@ if do_plot:
     excl = pd.read_csv(exclusions_file, parse_dates=['excl_start', 'excl_end'])
     for ix, row in excl.iterrows():
         plt.axvspan(row.excl_start, row.excl_end, alpha=0.1, color='tab:red')
-    plt.plot(geod_neu_xy.index, geod_neu_xy.x, '.', color='gray', alpha=0.3, label=label_geod)
-    plt.plot(xyz.index, xyz.x, '.', color='tab:purple', alpha=0.3, label=label_xyz)
-    plt.plot(filtd_disp.index, filtd_disp.x, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+    plt.plot(geod_neu_xy.index, geod_neu_xy.x_m, '.', color='gray', alpha=0.3, label=label_geod)
+    plt.plot(xyz.index, xyz.x_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
+    plt.plot(filtd_disp.index, filtd_disp.x_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
     plt.ylabel('Metres')
     plt.title('%s X - Time' %args.site)
     plt.legend()
@@ -509,9 +534,9 @@ if do_plot:
 # Plot Y versus Time
 if do_plot:
     plt.figure()
-    plt.plot(geod_neu_xy.y, geod_neu_xy.index, '.', color='gray', alpha=0.3, label=label_geod)
-    plt.plot(xyz.y, xyz.index, '.', color='tab:purple', alpha=0.3, label=label_xyz)
-    plt.plot(filtd_disp.y, filtd_disp.index, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+    plt.plot(geod_neu_xy.y_m, geod_neu_xy.index, '.', color='gray', alpha=0.3, label=label_geod)
+    plt.plot(xyz.y_m, xyz.index, '.', color='tab:purple', alpha=0.3, label=label_xyz)
+    plt.plot(filtd_disp.y_m, filtd_disp.index, '-', color='tab:blue', alpha=0.5, label=label_iterp)
     plt.xlabel('Metres')
     plt.title('%s Time - Y' %args.site) 
     plt.legend()
@@ -520,9 +545,9 @@ if do_plot:
 # Plot Time versus Z
 if do_plot:
     plt.figure()
-    plt.plot(geod_neu_xy.index, geod_neu_xy.z, '.', color='gray', alpha=0.3, label=label_geod)
-    plt.plot(xyz.index, xyz.z, '.', color='tab:purple', alpha=0.3, label=label_xyz)
-    plt.plot(filtd_disp.index, filtd_disp.z, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+    plt.plot(geod_neu_xy.index, geod_neu_xy.z_m, '.', color='gray', alpha=0.3, label=label_geod)
+    plt.plot(xyz.index, xyz.z_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
+    plt.plot(filtd_disp.index, filtd_disp.z_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
     plt.ylabel('Metres')
     plt.title('%s Time - Z' %args.site) 
     plt.legend()
@@ -532,9 +557,9 @@ if do_plot:
 if do_plot:
     plt.figure()
     ax1 = plt.subplot(211)
-    v_24h.v_24h.plot(ax=ax1, alpha=0.5)
+    v_24h.v_myr.plot(ax=ax1, alpha=0.5)
     # Use steps-pre: velocity calculation for day0 is (X_day1 - Xday0), so the step will show what happens that day.
-    v_24h.v_24h.plot(drawstyle='steps-pre', ax=ax1)
+    v_24h.v_myr.plot(drawstyle='steps-pre', ax=ax1)
     plt.title('%s 24H velocity' %args.site)
     plt.ylabel('m/yr')
     ax2 = plt.subplot(212, sharex=ax1)

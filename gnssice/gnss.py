@@ -458,8 +458,9 @@ def read_track_geod_file(
     # Specify the header manually - the file contains column names with 
     # white space which Pandas interprets as signifying a new column.
     # Note that some columns are renamed slightly to remove non-alphabet characters.
-    names = ['YY', 'DOY', 'Seconds', 'Latitude', 'Longitude', 'Height', 
-        'SigN', 'SigE', 'SigH', 'RMS', 'N', 'Atm', 'plus_minus', 'Fract_DOY', 
+    # Column names also now have units as per the second line of the header file.
+    names = ['YY', 'DOY', 'Seconds', 'Latitude_deg', 'Longitude_deg', 'Height_m', 
+        'SigN_cm', 'SigE_cm', 'SigH_cm', 'RMS_mm', 'N', 'Atm_mm', 'plus_minus_mm', 'Fract_DOY', 
         'Epoch', 'NBF', 'NotF', 'Flag']
 
     bounds = [
@@ -506,9 +507,9 @@ def read_track_neu_file(
     # Specify the header manually - the file contains column names with 
     # white space which Pandas interprets as signifying a new column.
     # Note that some columns are renamed slightly to remove non-alphabet characters.
-    names = ['YY', 'MM', 'DD', 'HR', 'MIN', 'Sec', 'dNorth', 'dNorth_plus_minus',
-            'dEast', 'dEast_plus_minus', 'dHeight', 'dHeight_plus_minus', 'RMS',
-            'N', 'Atm', 'Atm_plus_minus', 'Fract_DOY', 'Epoch', 'BF', 'NotF', 
+    names = ['YY', 'MM', 'DD', 'HR', 'MIN', 'Sec', 'dNorth_m', 'dNorth_plus_minus_m',
+            'dEast_m', 'dEast_plus_minus_m', 'dHeight_m', 'dHeight_plus_minus_m', 'RMS_mm',
+            'N', 'Atm_mm', 'Atm_plus_minus_mm', 'Fract_DOY', 'Epoch', 'BF', 'NotF', 
             'Flag', 'Rho_UA']
 
     bounds = [
