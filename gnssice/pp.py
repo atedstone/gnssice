@@ -14,6 +14,7 @@ from scipy.signal import filtfilt
 from pandas.tseries.frequencies import to_offset
 import matplotlib.pyplot as plt
 import collections.abc
+import pdb
 
 from gnssice import gnss
 from gnssice.gaussfiltcoef import gaussfiltcoef
@@ -282,7 +283,7 @@ def regularise(
     
     data_iterp = data.filter(items=('x_m','y_m','z_m'), axis='columns').interpolate()
     data_iterp = pd.concat((data_iterp, flag), axis='columns')
-    data_iterp[add_flag][data_iterp[add_flag].isna()] = 1
+    data_iterp.loc[data_iterp[add_flag].isna(), add_flag] = 1
 
     return data_iterp
 
@@ -317,6 +318,9 @@ def remove_displacement_outliers(
                         .resample(interval).asfreq() \
                         .interpolate()
             diffs = (data - smoothed).apply(np.abs)
+            # Only look at differences for uninterpolated data points
+            diffs = diffs[diffs.index.isin(data.index)]
+            #pdb.set_trace()
             data = data[~(
                 (diffs['x_m'] >= mt['x_m']) | 
                 (diffs['y_m'] >= mt['y_m']) | 
@@ -353,7 +357,10 @@ def smooth_displacement(
     :param gauss_win_secs: Size of the Gaussian filter window in seconds
     :param gauss_win_z_mult: Multiplier for size of z filter window
     """
-    interval = data.index.freq.delta.seconds
+    # Make sure data have seconds frequency
+    assert data.index.freq.freqstr[-1] == 's'
+    # Get seconds-based sampling frequency
+    interval = data.index.freq.n
     # Design filters
     gaus_coef = gaussfiltcoef((1/interval),(1/gauss_win_secs))
     gaus_coef_z = gaussfiltcoef((1/interval),(1/gauss_win_secs * gauss_win_z_mult))
@@ -482,7 +489,7 @@ def calculate_epoch_hoz_sigma_uncertainty(
 def calculate_period_vel_uncertainties(
     x : float | pd.Series,
     velocity : float | pd.Series, 
-    epoch_uncertainty: pd.Series | tuple=(0.01, 0.01) 
+    epoch_uncertainty: pd.Series | tuple=(0.02, 0.02) 
     ) -> pd.Series:
     """ Calculate the velocity uncertainties per given time period.
 
@@ -570,6 +577,8 @@ def calculate_period_velocities(
             unc = calculate_period_vel_uncertainties(x, v, **kwargs)
         v = v.to_frame()
         v['unc_myr'] = unc
+
+    v = np.round(v, 2)
 
     return v
    

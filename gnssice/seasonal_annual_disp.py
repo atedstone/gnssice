@@ -4,7 +4,7 @@ Calculate seasonal and annual displacements from GNSS data.
 As at June 2023, not ready to be used as a command line tool. Instead use magic
 %run functionality in a Notebook or ipython env.
 
-Andrew Tedstone (andrew.tedstone@unifr.ch), July 2022.
+Andrew Tedstone (andrew.tedstone@unifr.ch), July 2022, August 2025.
 """
 from __future__ import annotations
 import matplotlib.pyplot as plt
@@ -32,7 +32,7 @@ def load_multiple_xyz(files):
 def make_contiguous(df):
     # Coarsen the time series and interpolate over any gaps.
     xyzi = xyz.resample('1h').first()
-    original = xyzi.x.notna() 
+    original = xyzi.x_m.notna() 
     xyzi = xyzi.interpolate()
     xyzi['original'] = original
     return xyzi
@@ -48,14 +48,14 @@ def backdate(df, start='2021-05-01', freq='1h', sample=1000):
         # Use the first n. sampled hours.
         X = df.index[0:sample].to_julian_date()
         X = sm.add_constant(X)
-        y = df.x.iloc[0:sample]
+        y = df.x_m.iloc[0:sample]
         m = sm.OLS(y, X)
         f = m.fit()
 
         # Predict the hourly displacements
         pred = f.predict(sm.add_constant(synth_ts.to_julian_date()))
 
-        newx = pd.Series(pred, index=synth_ts, name='x').to_frame()
+        newx = pd.Series(pred, index=synth_ts, name='x_m').to_frame()
 
         toret = pd.concat((newx, df), axis=0)
         return toret
@@ -72,14 +72,14 @@ def fwddate(df, end='2024-05-01', freq='1h', sample=1000):
         # Use the first n. sampled hours.
         X = df.index[-sample:-1].to_julian_date()
         X = sm.add_constant(X)
-        y = df.x.iloc[-sample:-1]
+        y = df.x_m.iloc[-sample:-1]
         m = sm.OLS(y, X)
         f = m.fit()
 
         # Predict the hourly displacements
         pred = f.predict(sm.add_constant(synth_ts.to_julian_date()))
 
-        newx = pd.Series(pred, index=synth_ts, name='x').to_frame()
+        newx = pd.Series(pred, index=synth_ts, name='x_m').to_frame()
         toret = pd.concat((df, newx), axis=0)
         return toret
     else:
@@ -158,7 +158,9 @@ def calculate_disps(
                 # Observations are within permissible bounds
 
                 # Calculate displacement through period
-                disp = df.x.loc[en1] - df.x.loc[st1]
+                p_st = df.x_m.loc[st1]
+                p_en = df.x_m.loc[en1]
+                disp = p_en - p_st
                 disp = np.abs(np.round(disp, 2))
 
                 # Calculate velocity of period in metres per year
@@ -170,9 +172,10 @@ def calculate_disps(
                 print(period_length)
                 vel = np.abs(np.round(disp / period_length * year_length, 2))
 
-                uncertainty = np.round(pp.calculate_uncertainty(disp, vel), 2)
+                uncertainty = np.round(pp.calculate_period_vel_uncertainties(disp, vel), 2)
 
                 if np.isnan(vel):
+                    print(f'nan vel, disp {disp}, {p_st}, {p_en}')
                     continue
 
                 # Store results
@@ -196,7 +199,7 @@ def calculate_disps(
 
 # +
 sites = ['f003', 'f004', 'fs05', 'kanu', 'lev5', 'lev6'] #'camp'
-#sites = ['f004']    
+#sites = ['camp']    
     
 # Syntax:: period_name: [(start_month, start_day), (end_month, end_day), tolerance_days]
 periods = {
