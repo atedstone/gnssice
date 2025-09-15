@@ -769,12 +769,8 @@ class RinexConvert:
         print("This file begins on " + start_date.strftime("%Y.%m.%d (DOY %j)"))
         print("and ends on " + end_date.strftime("%Y.%m.%d (DOY %j)"))
 
-        if st_offset != '00:00:00':
-            # The window commences the day before the main day of interest
-            cal_date = start_date - datetime.timedelta(days=1)
-        else:
-            # Window will start on day of interest
-            cal_date = start_date
+        # Window will start on day of interest
+        cal_date = start_date
         
         out_root = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site)
         Path(out_root).mkdir(exist_ok=True)
