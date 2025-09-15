@@ -775,13 +775,15 @@ class RinexConvert:
         out_root = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site)
         Path(out_root).mkdir(exist_ok=True)
 
-        for doy in range(start_doy,end_doy + 1):
+        for day in pd.date_range(start_date, end_date, freq='1d'):
+        #for doy in range(start_doy,end_doy + 1):
+            doy = day.strftime('%j')
             print("Processing day " + str(doy))
             output_file = os.path.join(
                 out_root,
-                '{site}{doy}0.{yr}o'.format(site=site, doy=str(doy).zfill(3), yr=cal_date.strftime("%y"))
+                '{site}{doy}0.{yr}o'.format(site=site, doy=str(doy).zfill(3), yr=day.strftime("%y"))
                 )
-            cmd = "teqc " + add_leica + "-st " + cal_date.strftime("%Y%m%d") + " +dh 24" + \
+            cmd = "teqc " + add_leica + "-st " + day.strftime("%Y%m%d") + "000000 +dh 24" + \
             " " + input_file + " > " + output_file
             print("    " + cmd)
             sout, serr = shellcmd(cmd)
