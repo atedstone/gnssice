@@ -993,7 +993,7 @@ class Kinematic:
                 # Note that convertc takes order lon lat height.
                 #sout, serr = shellcmd("convertc " + str(vals[4]) + " " + 
                 #str(vals[3]) + " " + str(vals[5]) + " XYZ")                
-                cmd = 'convertc {0} {1} {2} XYZ'.format(last_obs['Longitude'], last_obs['Latitude'], last_obs['Height'])
+                cmd = 'convertc {0} {1} {2} XYZ'.format(last_obs['Longitude_deg'], last_obs['Latitude_deg'], last_obs['Height_m'])
                 print(cmd)
                 sout, serr = shellcmd(cmd)
                 xyz = sout.split()
@@ -1092,7 +1092,7 @@ class Kinematic:
                 if use_auto_qa == True: 
                     if spearman_threshold != None:
                         data = read_track_neu_file("track.NEU." + rover + ".LC")                      
-                        spearman = scipy.stats.spearmanr(data['dEast'], data['dNorth'])           
+                        spearman = scipy.stats.spearmanr(data['dEast_m'], data['dNorth_m'])           
                         print('Spearman value: ' + str(spearman[0]))
                         if spearman[0] < 0:
                             spearman_v = spearman[0] * -1
@@ -1220,26 +1220,26 @@ def plot_track_output(base, rover, doy, gtype='NEU', fname=None,
     
     plt.figure()
     
-    plt.plot(data['dEast'], data['dNorth'],
+    plt.plot(data['dEast_m'], data['dNorth_m'],
                 c='tab:blue', marker='.', linestyle='none',
                 label='Positions', alpha=0.2)
 
     only_fixed = data[data['NotF'] == 0]
-    plt.plot(only_fixed['dEast'], only_fixed['dNorth'],
+    plt.plot(only_fixed['dEast_m'], only_fixed['dNorth_m'],
                 c='tab:orange', marker='.', linestyle='none',
                 label='Positions (NotF==0)', alpha=0.2)
     
     # First data point
-    plt.plot(data['dEast'].iloc[0],data['dNorth'].iloc[0],
+    plt.plot(data['dEast_m'].iloc[0],data['dNorth_m'].iloc[0],
              c='tab:red', marker='+', markersize=10, linestyle='none',
              label='Start')
     # Last data point
-    plt.plot(data['dEast'].iloc[-1],data['dNorth'].iloc[-1],
+    plt.plot(data['dEast_m'].iloc[-1],data['dNorth_m'].iloc[-1],
              c='tab:red', marker='+', markersize=10, linestyle='none',
              label='End')
     # Midnight values
     midnights = data.between_time('00:00:00', '00:00:01')
-    plt.plot(midnights['dEast'],midnights['dNorth'],
+    plt.plot(midnights['dEast_m'],midnights['dNorth_m'],
              c='k', marker='+', markersize=10, linestyle='none',
              label='Midnight positions')
     
