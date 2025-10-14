@@ -979,11 +979,12 @@ class Kinematic:
                     return False  
 
                 # LC file might have overlapped data, we only want to look at data from yesterday
-                lc = lc[lc.DOY == doy-1]
-                if len(lc) == 0:
-                    raise ValueError('No records for yesterday found in .LC file.')
-
-                last_obs = lc.iloc[-10:-1].median()
+                lc_today = lc[lc.DOY == doy-1]
+                if len(lc_today) == 0:
+                    last_obs = lc.iloc[-10:-1].median()
+                    print('No records for yesterday found in .LC file, last APR on DOY {0}'.format(last_obs.DOY))
+                else:
+                    last_obs = lc_today.iloc[-10:-1].median()
                 #last_doy = last_obs['DOY']
                 #if int(last_doy) != doy-1:
                 #    raise IOError(f'DOY{last_doy} of last record in .LC file is not yesterday')
