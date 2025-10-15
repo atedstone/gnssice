@@ -800,6 +800,7 @@ class RinexConvert:
         input_file : str,
         st_timestart : str='000000', 
         dh : int=24,
+        smp : int=10,
         overwrite : bool=False
         ):
         """ Make daily RINEX file with overlapping window into the preceding and subsequent days.
@@ -852,7 +853,8 @@ class RinexConvert:
             f'gfzrnx -finp {f_prev} {input_file} {f_next} '   # input filenames
             f'-fout {f_out} '                                 # output filename
             f'-epo_beg {epo_beg} -d {seconds} '               # when the epoch starts and how long it lasts
-            f'-kv'                                            # keep the input file format (RINEX2 vs 3)
+            f'-kv '                                           # keep the input file format (RINEX2 vs 3)
+            f'-smp {smp}'                                     # sampling rate
         )
         print(cmd)
         sout, serr = shellcmd(cmd)     
@@ -939,7 +941,8 @@ class Kinematic:
         yr_short = year % 1000
 
         # Identify rover receiver type from RINEX
-        fpth = os.path.join(os.environ['GNSS_WORK'], 'rinex', rover, f'{rover}{doy_start}0.{yr_short}o')
+        doy_str = str(doy_start).zfill(3)
+        fpth = os.path.join(os.environ['GNSS_WORK'], 'rinex', rover, f'{rover}{doy_str}0.{yr_short}o')
         if not os.path.exists(fpth):
             raise IOError(f'RINEX file {fpth} not found.')
         rcv_type, serr = shellcmd("grep -E 'REC # / TYPE / VERS' %s | awk '{print $2, $3}'" %fpth)
