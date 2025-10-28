@@ -26,16 +26,16 @@ def cli():
     geod = pd.read_parquet(args.geod_file)
 
     # We have to recalculate local cartesian for pre_res first 100 points as these are not saved in pre_res.
-    pre_res_xyz = pp.ell2xyz(geod['Latitude'].iloc[0:100] * (math.pi/180),
-                             geod['Longitude'].iloc[0:100] * (math.pi/180),
-                             geod['Height'].iloc[0:100]) 
+    pre_res_xyz = pp.ell2xyz(geod['Latitude_deg'].iloc[0:100] * (math.pi/180),
+                             geod['Longitude_deg'].iloc[0:100] * (math.pi/180),
+                             geod['Height_m'].iloc[0:100]) 
 
     x = np.median(pre_res_xyz['x'])
     y = np.median(pre_res_xyz['y'])
     z = np.median(pre_res_xyz['z'])
 
-    lat0 = geod['Latitude'].iloc[0:100].median()
-    lon0 = geod['Longitude'].iloc[0:100].median()
+    lat0 = geod['Latitude_deg'].iloc[0:100].median()
+    lon0 = geod['Longitude_deg'].iloc[0:100].median()
 
     # save x,y,z.
     df = pd.DataFrame({'x0':[x], 'y0':[y], 'z0':[z], 'lat0':lat0, 'lon0':lon0})
