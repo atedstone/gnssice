@@ -176,7 +176,7 @@ def load_sort(args):
     print(geod.tail())
     
     plt.figure()
-    plt.plot(geod.index, geod.Latitude, 'o')
+    plt.plot(geod.index, geod.Latitude_deg, 'o')
     plt.show()
     
     return geod
