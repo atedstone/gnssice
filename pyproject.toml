@@ -34,7 +34,8 @@ dependencies = [
     "scipy>=1",
     "pyarrow",
     "statsmodels",
-    "click"
+    "click",
+    "requests"
 ]
 
 [project.urls]
