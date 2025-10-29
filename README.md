@@ -270,18 +270,25 @@ In Greenland, GNET stations can often serve as the base for post-processing. The
 
 Data from stations maintained by the Geological Survey of Denmark and Greenland (GEUS), e.g. at Point 660, can in principle be obtained from the GEUS DataVerse, but if unavailable then individual contact may be needed.
 
-If files have `*.<yy>o` suffix you're all set, otherwise, if they are zipped, unzip the compressed RINEX files. Then convert to normal RINEX i.e. from `*.10d` to `*.10o`, using CRX2RNX.
+**Important:** all filenames need to be in lowercase. Files from the GEUS DataVerse may be in uppercase, in which it is essential to rename them to lowercase:
+
+```bash
+for a_file in *;do mv -v "$a_file" `echo "$a_file" | tr [:upper:] [:lower:]` ;done;
+``` 
+ 
+If files have a 'd' suffix then you need to decompress them before you go any further:
 
 ```bash	
+cd path/containing/rinex.yyD
 for f in *; do
 crx2rnx $f;
 done
-```	    
- 
-Overlap/window RINEX files using the `R` file type argument to `process_rinex`:
+```	
+
+Now overlap/window RINEX files using the `R` file type argument to `process_rinex`:
 
 ```bash
-process_rinex site R -overlap
+process_rinex <site> R -overlap
 ```
 
 
