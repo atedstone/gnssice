@@ -965,6 +965,13 @@ class Kinematic:
             save_opts = dict(r=rover, b=base, y=year, d=str(doy).zfill(3))
 
             print("Processing day " + str(doy).zfill(3) + "...")
+
+            # Check whether rover data exist for this day
+            doy_str = str(doy).zfill(3)
+            if not os.path.exists(os.path.join(os.environ['GNSS_WORK'], 'rinex', rover, f'{rover}{doy_str}0.{yr_short}o')):
+                print('\t Rover data not available, skipping')
+                continue
+
             # Deal with APR coordinates            
             if doy == doy_start and self.apriori != None:
                 print("Using specified APR coordinates.")
