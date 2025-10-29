@@ -45,9 +45,13 @@ def cli():
         k.ion_stats = 2
         k.MW_WL = 0.1
         k.LG = 0.15
+    elif args.base == "lrhp":
+        k.ion_stats = 1 
+        k.MW_WL = 0.1
+        k.LG = 0.15
     else:
         print ("Unknown base station - cannot set processing parameters. Exiting.")
-        exit
+        return
 
     k.apriori = args.ap
 
