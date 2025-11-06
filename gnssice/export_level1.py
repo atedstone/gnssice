@@ -44,6 +44,7 @@ import argparse
 from scipy.stats import mode
 from copy import deepcopy
 from glob import glob
+from pathlib import Path
 
 # %%
 from gnssice import pp
@@ -61,66 +62,6 @@ from gnssice import pp
 # input_args = [site, '-stake', '-f', 
 #               'geod_bales/*.parquet']
 
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['f003', '-f', 
-#               'f003_rusb_2021_126_214_GEOD.parquet',
-#               'f003_rusb_2022_131_131_GEOD.parquet',
-#               'f003_rusb_2023_123_123_GEOD.parquet',
-#               'f003_1230_geod.parquet'
-#              ]
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/f003/'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['f004', '-stake', '-f', 
-#               'f004_2021_122_2023_123_geod.parquet',
-#               'f004_rusb_2024_124_124_GEOD.parquet']
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/f004/'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['fs05', '-f', 
-#               'fs05_rusb_2021_125_145_GEOD.parquet',
-#               'fs05_rusb_2021_198_265_GEOD.parquet',
-#               'fs05_klsq_2021_266_366_GEOD.parquet',
-#               'fs05_klsq_2022_1_60_GEOD.parquet',
-#               'fs05_rusb_2022_60_128_GEOD.parquet',
-#               'fs05_rusb_2024_122_122_GEOD.parquet'
-#              ]
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/fs05'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['kanu', '-f', 
-#               'kanu_2021_122_2023_119_geod.parquet',
-#               'kanu_rusb_2023_126_274_GEOD.parquet',
-#               'kanu_klsq_2023_278_324_GEOD.parquet',
-#               'kanu_rusb_2024_121_121_GEOD.parquet'
-#              ]
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/kanu/'
-
-
-# # If running as a Notebook, provide your arguments to the ArgumentParser here.
-# input_args = ['lev5', '-f', 
-#               'lev5_rusb_2021_129_242_GEOD.parquet',
-#               'lev5_rusb_2022_137_138_GEOD.parquet', 
-#               'lev5_rusb_2022_151_271_GEOD.parquet', 
-#               'lev5_klsq_2022_271_323_GEOD.parquet',
-#               'lev5_rusb_2023_128_129_GEOD.parquet']
-# # And also provide the path where all your data are stored. 
-# # The Notebook will use this to set the working directory.
-# path_to_data = '/scratch/gnss/lev5/'
-
-
 # # If running as a Notebook, provide your arguments to the ArgumentParser here.
 # input_args = ['lev6', '-f', 
 #               'lev6_2021_127_2023_123_geod.parquet',
@@ -133,26 +74,30 @@ from gnssice import pp
 # path_to_data = '/scratch/gnss/lev6/'
 
 
-
-
 # %% [markdown]
 # ## Load data and organise output filenames
 
 # %%
 def load_sort(args):
-    # Load data and apply timestamp
-    geod_store = []
+
+    if args.finp is not None:
+        data_root = args.finp
+    else:
+        data_root = os.environ['GNSS_L1DIR']
     if args.geod_file is None:
-        path_to_data = os.path.join(os.environ['GNSS_PATH_TRACK_OUT'], args.site, '*.parquet')
-        print(f'Searching GNSS_WORK dir... ({path_to_data})')
+        path_to_data = os.path.join(data_root, args.site, pp.REGEX_GEOD_BALE_FILE)
+        print(f'Searching {path_to_data}...')
         files = glob(path_to_data)
     elif len(args.geod_file) == 1:
-        print('Using provided wildcard sequence. Found:')
+        print('Using provided wildcard sequence from -geod_file option. Found:')
         files = glob(args.geod_file[0])
     else:
         print('Using provided list of files.')
         files = args.geod_file
-        
+
+    # Load data and apply timestamp
+    geod_store = []
+
     for file in files:
         print(file)
         geod = pd.read_parquet(file.strip())
@@ -160,7 +105,7 @@ def load_sort(args):
             geod.index = pp.create_time_index(geod)
             geod = geod.drop(labels=['YY', 'DOY', 'Seconds'], axis='columns')
         else:
-            print('The parquet file provided appears to be a multi-batch file, continuing on this basis...')
+            print('Warning: This parquet file appears to be composed of multiple bales.')
         
         geod = pp.update_legacy_geod_col_names(geod)
         
@@ -168,6 +113,8 @@ def load_sort(args):
     
     geod = pd.concat(geod_store, axis=0)
     geod = geod.sort_index()
+    ndups = len(geod.index.duplicated())
+    print('Removing {ndups} duplicated rows across the combined data bales')
     geod = geod[~geod.index.duplicated()]
 
     print('GEOD head:')
@@ -205,21 +152,39 @@ def export(args, geod):
         
     if os.path.exists(geod_out):
         os.remove(geod_out)
-        print('Old concatenated parquet file %s found, replaced.' %geod_out)
+        print('Old concatenated parquet file %s with same time range found, replaced.' %geod_out)
         
     geod.to_parquet(geod_out)
     print(f'\nLevel-1 file output to {geod_out} .')
+    return geod_out
+
+def remove_old_files(newfile, args):
+
+    path_to_data = os.path.join(os.environ['GNSS_L1DIR'], args.site, pp.REGEX_L1_FILE)
+    print(f'Searching {path_to_data}...')
+    files = glob(path_to_data)
+    if len(files) > 1:
+        for f in files:
+            if Path(f).name == Path(newfile).name:
+                continue
+            else:
+                print(f'Found old Level-1 file {f}, deleting')
+                os.remove(f)
+
+    return 
 
 
 # %%
 def cli():
     p = argparse.ArgumentParser('Export Level-1 Parquet file of GNSS GEOD data bales to Level-1 directory')
     p.add_argument('site', type=str, help='Name/identifier of site')
+    p.add_argument('-finp', type=str, default=None, help='Files input path (default is env $GNSS_L1DIR). Do not use in combination with -f.')
     
     p.add_argument('-f', dest='geod_file', type=str, nargs='+', default=None,
-        help='Path to GEOD parquet file(s) (output by conc_daily_geod.py), if provided overwrites automatic wildcard searching in GNSS_WORK dir of site')
+        help='Path(s) to GEOD bale parquet file(s). If a single path is provided then it is treated as a wildcard search. This option suppresses the automatic searching functionality. Do not use in combination with -finp.')
     
     args = p.parse_args()
 
     geod = load_sort(args)
-    export(args, geod)
+    geod_out = export(args, geod)
+    remove_old_files(geod_out, args)

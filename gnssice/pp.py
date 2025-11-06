@@ -28,6 +28,9 @@ ELLPS_B = 6356752.3142
 # First numerical eccentricity
 ELLPS_E2 = 1.0 - math.pow((ELLPS_B/ELLPS_A), 2)
 
+REGEX_GEOD_BALE_FILE = r'[a-z0-9]{4}\_[a-z0-9]{4}\_[0-9]{4}\_[0-9]{3}\_[0-9]{3}_GEOD.parquet'
+REGEX_L1_FILE = r'[a-z0-9]{4}\_[0-9]{4}\_[0-9]{3}\_[0-9]{4}\_[0-9]{3}_geod.parquet'
+
 
 def update_legacy_geod_col_names(df):
     return df.rename(columns={

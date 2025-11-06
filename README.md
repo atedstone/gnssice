@@ -114,12 +114,13 @@ process_dgps rusb lev5 2021 129 129 -ap x y z
 process_dgps rusb lev5 2021 130 242 
 
 # Post-process the batch of data you just processed.
-# This creates parquet files in the processed_track/lev5/ directory.
+# This creates parquet files in the `GNSS_L1DIR`/lev5/ directory.
 # They have filenames rover_base_year_startDOY_endDOY_GEOD.parquet
 conc_daily_geod rusb lev5 2021 129 242
 
 # Eventually, combine batches of data together 
 # This produces filename rover_startyear_startDOY_endyear_endDOY_geod.parquet
+# Also stored in GNSS_L1DIR
 export_level1 lev5
 ```
 
@@ -336,6 +337,12 @@ After, you can delete any empty files:
 
 	find -size 0c -delete
 
+#### Level-0 data
+
+The RINEX files constitute Level-0 data for archival. Compress these files to CompactRINEX using RNXCRZ, and then gzip them to compress further.
+
+!!TO-DO 2025-11-06!! make script to do these operations automatically.
+
 
 ### Do the kinematic processing
 
@@ -490,37 +497,34 @@ You now have two different options:
 
 Copy the GEOD results files into your main GPS processing directory. You'll then be able to concatenate the output GEOD file to the main rover dataset when you run concatenate_geod. 
 
-#### Level-0 data
 
-The RINEX files constitute Level-0 data for archival. Compress these files to CompactRINEX using RNXCRZ, and then gzip them to compress further.
+### Concatenate TRACK outputs into bales
 
+The GEOD TRACK output files need to be combined together into bales, one bale per processing batch (see earlier in this readme), removing the overlapping hours.
 
-### Concatenate the TRACK files
-
-The GEOD TRACK output files need to be combined together, removing the overlapping hours.
-
-Use `conc_daily_geod` to produce multi-day Parquet files. Each file corresponds to a 'batch' (see the explanation earlier in this readme). These Parquet files are created from data stored in $GNSS_PATH_TRACK_OUT, which is also where the Parquet files get saved to.
+Use `conc_daily_geod` to produce the multi-day Parquet bale files. These Parquet files are created from data stored in `$GNSS_PATH_TRACK_OUT`. The files get saved to `GNSS_L1DIR`, i.e. they are stored alongside the main Level-1 product (see next section).
 
 In the simple case of collecting data from the field in spring each year and processing using the same base-rover combination, there will be two data batches:
 
-1. rover_base_year1_startDOY_endDOY
-2. rover_base_year2_startDOY_endDOY
+1. rover_base_year1_startDOY_endDOY_GEOD.parquet
+2. rover_base_year2_startDOY_endDOY_GEOD.parquet
 
-However, if a different base station needs to be used for certain periods, there will be multiple batches, e.g.
+However, if a different base station needs to be used for certain periods, there will be multiple bales, e.g.
 
-1. rover_bas1_year1_100_200
-2. rover_bas2_year1_200_365
-3. rover_bas1_year2_1_100
+1. rover_bas1_year1_100_200_GEOD.parquet
+2. rover_bas2_year1_200_365_GEOD.parquet
+3. rover_bas1_year2_1_100_GEOD.parquet
 
 
 ### Export to Level-1 product
 
-We consider the Level-1 data product to be a continuous Parquet file containing all data from all batches since a site was first established. You can generate the Level-1 Parquet file either:
+We consider the 'public-facing' Level-1 data product to be a temporally-continuous Parquet file containing all data from all bales/batches since a site was first established. 
 
-1. Using all the individual data batch Parquet files, or
-2. Providing an existing Level-1 Parquet file and only the new data batches.
+Use the command line tool `export_level1`. By default the bales are expected to be in `$GNSS_L1DIR/<site>`. The Level-1 product file is saved in `$GNSS_L1DIR/<site>`.
 
-Use the command line tool `export_level1` in both cases. The Level-1 data are saved in `$GNSS_L1DIR/<site>`.
+Filename format: `rover_yearstart_doystart_yearend_doyend_geod.parquet`
+
+Note that we preferentially (re-)generate the Level-1 product from the bale Parquet files. But, it is also possible to append a new bale to an existing Level-1 Parquet file. If you need this functionality then see the CLI tool for more information.
 
 
   
@@ -545,7 +549,7 @@ Set the paths to these folders using environment variables, which are used by th
 
 ### Site origin
 
-If older data for this site has already been post-processed then a file, `origin_<site>.csv` will have been generated. Place this file in $GNSS_L2DIR as indicated above.
+If older data for this site has already been post-processed then a file, `origin_<site>.csv` will have been generated. Place this file in `$GNSS_L2DIR` as indicated above.
 
 If this is the first occasion of processing for this site,  run 
 
