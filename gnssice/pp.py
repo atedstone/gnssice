@@ -706,7 +706,7 @@ def calculate_regular_velocities(
     tz : str=None,
     flag_iterp : pd.Series=None,
     calc_uncertainty : bool=True, 
-    sigmas : (pd.Series, pd.Series),
+    sigmas : tuple=None,
     **kwargs
     ) -> pd.DataFrame:
     """
@@ -767,10 +767,10 @@ def calculate_regular_velocities(
             unc = calculate_vel_uncertainties(x, v, **kwargs)
         v = v.to_frame()
         v = np.round(v, 2)
-        v['unc_myr'] = unc
-        v['disp_m'] = x
+        v['v_uncertainty_myr'] = unc
+        v['x_m'] = x
         if isinstance(sigmas, pd.DataFrame):
-            v['sigma_epoch_m'] = epoch_uncs # = #np.round(
+            v['x_sigma_m'] = epoch_uncs # = #np.round(
 
     return v
    

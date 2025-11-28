@@ -362,8 +362,6 @@ if not args.stake:
     xyz['interpolated'] = filtd_i['interpolated'].astype(bool)
     #xyz = xyz[filtd_i.interpolated == 0]
 
-filtd
-
 # ## Calculate velocities
 
 if not args.stake:
@@ -521,158 +519,105 @@ if do_plot:
     plt.legend()
     plt.savefig('%s_tz.png' %output_L2_base, dpi=300)
 
-v24h_epoch
-
 # Plot 24-hour differenced velocities
-plot_new = True
+if do_plot:
+    plt.figure()    
+    plt.errorbar(v24h_reg.index+pd.Timedelta(hours=12), v24h_reg.v_myr, yerr=v24h_reg.v_uncertainty_myr, elinewidth=1.4, ecolor='tab:blue', drawstyle='steps-mid', alpha=0.5)
+    plt.errorbar(v5d_reg.index+pd.Timedelta(hours=(5*24)/2), v5d_reg.v_myr, yerr=v5d_reg.v_uncertainty_myr, elinewidth=1, color='k', ecolor='k', drawstyle='steps-mid', linewidth=2)
+    plt.errorbar(v15d_reg.index+pd.Timedelta(hours=(15*24)/2), v15d_reg.v_myr, yerr=v15d_reg.v_uncertainty_myr, elinewidth=1, color='tab:red', ecolor='tab:red', drawstyle='steps-mid', linewidth=2)
+    plt.ylim(0, v24h_reg.v_myr.max()+10)
+    plt.title('%s 24-H, 5-D and 15-D velocity (legacy differencing)' %args.site)
+    plt.ylabel('m/yr')
+    plt.savefig('%s_v24h_5d_legacy.png' %output_L2_base, dpi=300) 
+
+
+# +
+def epoch_plotting(v_ts, data_kwargs=None, error_kwargs=None):
+    # Plot stepped velocities
+    plt.plot(v_ts.index, v_ts['v_myr'], drawstyle='steps-post', **data_kwargs)
+    # Now plot uncertainties. Note that we cannot use the errorbar call to also plot the velocities,
+    # because the steps don't begin in the right places when called with irregularly spaced mid-point timestamps.
+    # This is therefore a different situation to that of regularly spaced velocities and uncertainties.
+    mid_pt_timestamps = (v_ts.index+np.abs(v_ts.index.diff(-1)/2))
+    df_plotting = pd.DataFrame({'v_myr':v_ts.v_myr, 'v_unc':v_ts.v_uncertainty_myr})
+    df_plotting.index = mid_pt_timestamps
+    df_plotting = df_plotting[df_plotting.index.notnull()]
+    df_plotting = df_plotting.dropna()
+    # plt.errorbar(mid_pt_timestamps, v_ts['v_myr'].dropna(), linestyle='none',
+    #             yerr=v_ts['v_uncertainty_myr'].dropna(), **error_kwargs)
+    plt.errorbar(df_plotting.index, df_plotting['v_myr'], linestyle='none',
+                yerr=df_plotting['v_unc'], **error_kwargs)
+    
+    
+    
 if do_plot:
     plt.figure()
-    plt.errorbar(v24h_reg.index+pd.Timedelta(hours=12), v24h_reg.v_myr, yerr=v24h_reg.unc_myr, elinewidth=1.4, ecolor='tab:blue', drawstyle='steps-mid', alpha=0.5)
-    plt.errorbar(v5d_reg.index+pd.Timedelta(hours=(5*24)/2), v5d_reg.v_myr, yerr=v5d_reg.unc_myr, elinewidth=1, color='k', ecolor='k', drawstyle='steps-mid', linewidth=2)
-    plt.errorbar(v15d_reg.index+pd.Timedelta(hours=(15*24)/2), v15d_reg.v_myr, yerr=v15d_reg.unc_myr, elinewidth=1, color='tab:red', ecolor='tab:red', drawstyle='steps-mid', linewidth=2)
-    # plt.errorbar((epoch_vel.index[:-1]+(epoch_vel.index.diff(1)[1:]/2)), epoch_vel[:-1], linestyle='none',
-    #             yerr=epoch_vel_unc[:-1], elinewidth=0.5, ecolor='tab:orange', capsize=2, zorder=10)
-
-    if plot_new:
-        # Plot stepped velocities
-        plt.plot(v5d_epoch.index, v5d_epoch['v_myr'], drawstyle='steps-post', color='tab:green', linewidth=4)
-        # Now plot uncertainties. Note that we cannot use the errorbar call to also plot the velocities,
-        # because the steps don't begin in the right places when called with irregularly spaced mid-point timestamps.
-        # This is therefore a different situation to that of regularly spaced velocities and uncertainties.
-        mid_pt_timestamps = (v5d_epoch.index+np.abs(v5d_epoch.index.diff(-1)/2))[:-1]
-        plt.errorbar(mid_pt_timestamps, v5d_epoch['v_myr'].dropna(), linestyle='none',
-                    yerr=v5d_epoch['v_uncertainty_myr'].dropna(), elinewidth=1, ecolor='tab:orange', capsize=2, zorder=10, alpha=0.2)
-    
+    epoch_plotting(v24h_epoch, 
+                    data_kwargs=dict(color='tab:blue'),
+                    error_kwargs=dict(elinewidth=1, ecolor='tab:blue', capsize=0, alpha=0.5))
+    epoch_plotting(v5d_epoch, 
+                    data_kwargs=dict(color='k', linewidth=2),
+                    error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
+    epoch_plotting(v15d_epoch, 
+                    data_kwargs=dict(color='tab:red', linewidth=2),
+                    error_kwargs=dict(elinewidth=1, ecolor='tab:red', capsize=1))
     plt.ylim(0, v24h_epoch.v_myr.max()+10)
-
-    plt.title('%s 24-H, 5-D and 15-D velocity' %args.site)
+    plt.title('%s 24-H, 5-D and 15-D velocity (observational epoch differencing)' %args.site)
     plt.ylabel('m/yr')
+    plt.savefig('%s_v24h_5d_epochs.png' %output_L2_base, dpi=300)
 
-    plt.savefig('%s_v24h_5d.png' %output_L2_base, dpi=300)
-
+# +
 # Summer-only plots
+
+# Legacy velocities
 if do_plot:
-    ystart = v_24h.index.year.unique().min()
-    yend = v_24h.index.year.unique().max()
+    ystart = v24h_reg.index.year.unique().min()
+    yend = v24h_reg.index.year.unique().max()
     for year in range(ystart, yend):
         
-        v_24h_here = v_24h.loc[f'{year}-05-01':f'{year}-10-01']
-        print(year, v_24h_here.obs_cover_percent.mean())
-        if v_24h_here.obs_cover_percent.mean() <= 0.1:
+        v24h_here = v24h_reg.loc[f'{year}-05-01':f'{year}-10-01']
+        print(year, v24h_here.obs_cover_percent.mean())
+        if v24h_here.obs_cover_percent.mean() <= 0.1:
             continue
         
         plt.figure()
-        v_5d_here = v_5d.loc[f'{year}-05-01':f'{year}-10-01']
-        v_15d_here = v_15d.loc[f'{year}-05-01':f'{year}-10-01']
-        plt.errorbar(v_24h_here.index+pd.Timedelta(hours=12), v_24h_here.v_myr, yerr=v_24h_here.unc_myr, elinewidth=0.2, ecolor='tab:blue', drawstyle='steps-mid', alpha=0.5)
-        plt.errorbar(v_5d_here.index+pd.Timedelta(hours=(5*24)/2), v_5d_here.v_myr, yerr=v_5d_here.unc_myr, elinewidth=1, color='k', ecolor='k', drawstyle='steps-mid', linewidth=2)
-        plt.errorbar(v_15d_here.index+pd.Timedelta(hours=(15*24)/2), v_15d_here.v_myr, yerr=v_15d_here.unc_myr, elinewidth=1, color='tab:red', ecolor='tab:red', drawstyle='steps-mid', linewidth=2)
+        v5d_here = v5d_reg.loc[f'{year}-05-01':f'{year}-10-01']
+        v15d_here = v15d_reg.loc[f'{year}-05-01':f'{year}-10-01']
+        plt.errorbar(v24h_here.index+pd.Timedelta(hours=12), v24h_here.v_myr, yerr=v24h_here.v_uncertainty_myr, elinewidth=0.2, ecolor='tab:blue', drawstyle='steps-mid', alpha=0.5)
+        plt.errorbar(v5d_here.index+pd.Timedelta(hours=(5*24)/2), v5d_here.v_myr, yerr=v5d_here.v_uncertainty_myr, elinewidth=1, color='k', ecolor='k', drawstyle='steps-mid', linewidth=2)
+        plt.errorbar(v15d_here.index+pd.Timedelta(hours=(15*24)/2), v15d_here.v_myr, yerr=v15d_here.v_uncertainty_myr, elinewidth=1, color='tab:red', ecolor='tab:red', drawstyle='steps-mid', linewidth=2)
         plt.xlim(pd.Timestamp(year, 5, 1), pd.Timestamp(year, 10, 1))
-        plt.ylim(0, v_24h_here.v_myr.max()+20)
-        plt.title('%s 24-H, 5-D and 15-D velocity, Summer %s' %(args.site, year))
+        plt.ylim(0, v24h_here.v_myr.max()+20)
+        plt.title('%s 24-H, 5-D and 15-D velocity, Summer %s (legacy differencing)' %(args.site, year))
         plt.ylabel('m/yr')
-        plt.savefig('%s_v24h_5d_summer_%s.png' %(output_L2_base, year), dpi=300)
+        plt.savefig('%s_v24h_5d_summer_%s_legacy.png' %(output_L2_base, year), dpi=300)
 
-# +
-# Plot velocities over other window lengths
-# needs uncertainties!
-# if do_plot:       
-#     plt.figure()
-#     v15d.plot(drawstyle='steps-pre', label='15d')
-#     v30d.plot(drawstyle='steps-pre', label='30d')
-#     plt.title('%s 15/30 Day velocity' %args.site)
-#     plt.ylabel('m/yr')
-#     plt.legend()
-#     plt.savefig('%s_v15d.png' %output_L2_base, dpi=300)
 
-# +
-# Plot instantaneous 6-hour differenced velocities
-# if do_plot:       
-#     plt.figure()
-#     v_6h.plot()
-#     plt.title('%s Instantaneous 6H velocity' %args.site)
-#     plt.ylabel('m/yr')
-#     plt.savefig('%s_v6h.png' %output_L2_base, dpi=300)
+# Epoch-to-epoch velocities
+if do_plot:
+    ystart = v24h_epoch.index.year.unique().min()
+    yend = v24h_epoch.index.year.unique().max()
+    for year in range(ystart, yend):
+        
+        plt.figure()
+        v24h_here = v24h_epoch.loc[f'{year}-05-01':f'{year}-10-01']
+        v5d_here = v5d_epoch.loc[f'{year}-05-01':f'{year}-10-01']
+        v15d_here = v15d_epoch.loc[f'{year}-05-01':f'{year}-10-01']
+
+        epoch_plotting(v24h_here, 
+                data_kwargs=dict(color='tab:blue', alpha=0.5),
+                error_kwargs=dict(elinewidth=1, ecolor='tab:blue', capsize=0, alpha=0.5))
+        epoch_plotting(v5d_here, 
+                        data_kwargs=dict(color='k', linewidth=2),
+                        error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
+        epoch_plotting(v15d_here, 
+                        data_kwargs=dict(color='tab:red', linewidth=2),
+                        error_kwargs=dict(elinewidth=1, ecolor='tab:red', capsize=1))
+        plt.xlim(pd.Timestamp(year, 5, 1), pd.Timestamp(year, 10, 1))
+        plt.ylim(0, v24h_here.v_myr.max()+20)
+        plt.title('%s 24-H, 5-D and 15-D velocity, Summer %s (observational epoch differencing)' %(args.site, year))
+        plt.ylabel('m/yr')
+        plt.savefig('%s_v24h_5d_summer_%s_epochs.png' %(output_L2_base, year), dpi=300)
 # -
 
-# ## Development feature: subset the parquet file to a smaller file
-# Use this to save a smaller dataset which you can use with this Notebook during testing of filtering procedures. This saves a dataset which contains only unmodified data, i.e. no filtering has been applied to it!
 
-# +
-# if is_notebook():
-#     # Put in your dates of interest here
-#     smaller_data = geod.loc['2021-10-01':'2021-12-31']
-#     # Then let's work out the correct filename
-#     smaller_fn = '{site}_{ys}_{ds}_{ye}_{de}.parquet'.format(
-#         site=args.site,
-#         ys=smaller_data.index[0].year,
-#         ds=smaller_data.index[0].timetuple().tm_yday,
-#         ye=smaller_data.index[-1].year,
-#         de=smaller_data.index[-1].timetuple().tm_yday
-#     )
-#     smaller_data.to_parquet(smaller_fn)
-#     print('Output to %s.' %smaller_fn)
-# -
-
-# ## Under development: calculating velocities over flexible window lengths
-
-# +
-# ### Try a flexible window length approach on raw data.
-# filt_manual = pp.filter_positions(geod_neu_xy)
-# # Doyle et al use 6H positions
-# # Can I use regression across several days to estimate the accuracy/quality of the single-day-obs used?
-# fmanres = filt_manual.x[(filt_manual.index.hour >= 9) & (filt_manual.index.hour <= 15)].resample('1D').mean()
-
-# +
-# #fmanres['2021-12-04'] = np.nan
-# #fmanres['2021-12-05'] = np.nan
-# ## Velocity over a minimum window length, looking ahead for the first position value at least x days away from current obs, otherwise more.
-# # need to start with a 'good' date, how best to identify this?
-# procdate = fmanres.index[0] #pd.Timestamp('2021-05-10')
-# store = []
-# while True:
-#     loc_today = fmanres.loc[procdate]
-#     loc_next = fmanres.loc[procdate + pd.Timedelta(days=15):]
-#     loc_next = loc_next.dropna()
-#     if len(loc_next) == 0:
-#         print('End of series')
-#         break
-#     date_next = loc_next.index[0]
-#     loc_next = loc_next.iloc[0]
-#     print(loc_next)
-#     tdiff = date_next - procdate
-#     diff = np.abs(loc_next - loc_today)
-#     vel = diff * pp.v_mult('%sD'%tdiff.days)
-#     store.append(dict(start=procdate, finish=date_next, disp=diff, velocity=vel))
-#     procdate = date_next
-# outp = pd.DataFrame(store)
-# +
-# import statsmodels.api as sm
-# def detrend(df):
-#     X = sm.add_constant(df.index.to_julian_date())
-#     y = df['x']
-#     rz = sm.OLS(y, X).fit()
-#     slope = rz.params['const']
-#     detr = df['x'] - (rz.params['x1']*df.index.to_julian_date() + rz.params['const'])
-#     return detr
-
-# store = {}
-# for date in pd.date_range('2023-07-01','2023-09-01'):
-#     store[date] = detrend(geod_neu_xy.loc[date-pd.Timedelta(hours=1):date+pd.Timedelta(hours=1)]).std()
-# uncs = pd.Series(store)
-
-# def unc(df):
-#     #print(df.index[0], df.index[-1])
-#     if len(df) > 1:
-#         return df.loc[:df.index[0]+pd.Timedelta(hours=3)].mean()
-#     else:
-#         return np.nan
-# uncs_e = filtd['SigE_cm'].resample('1D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
-# uncs_n = filtd['SigN_cm'].resample('1D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
-# uncs = np.sqrt(uncs_e**2 + uncs_n**2)
-# v_24h_new = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz, method='epoch', epoch_uncertainty=uncs)
-
-# uncs_e = filtd['SigE'].resample('5D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
-# uncs_n = filtd['SigN'].resample('5D', offset='-3h').apply(unc).shift(freq='3h') * 0.01
-# uncs = np.sqrt(uncs_e**2 + uncs_n**2)
-# v_5d = pp.calculate_daily_velocities(filtd_disp['x'], tz=args.tz, method='epoch', epoch_uncertainty=uncs, win='5D')
