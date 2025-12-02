@@ -1,0 +1,6 @@
+periods:
+- date_start: 2009-05-01
+  date_finish: 2009-12-31
+  filter_positions_continuous:
+    N: 0
+    NotF: 100

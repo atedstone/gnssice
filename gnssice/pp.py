@@ -211,10 +211,10 @@ def apply_exclusions(
 
 def filter_positions(
     data : pd.DataFrame,
-    thresh_rms : float=50.0,
-    thresh_h : float=10.0,
-    thresh_N : int=3,
-    thresh_NotF : int=0
+    thresh_rms : float,
+    thresh_h : float,
+    thresh_N : int,
+    thresh_NotF : int
     ) -> pd.DataFrame:
     """
     Filter (remove) bad positions based on their RMS, height standard deviation
@@ -222,7 +222,7 @@ def filter_positions(
 
     :param thresh_rms: Threshold RMS value in mm to retain. (<=)
     :param thresh_h: Threshold height std. deviation in cm to retain. (<=)
-    :param thresh_N: Threshold to apply to column N, retain above this value. (>)
+    :param thresh_N: Threshold to apply to column N, retain above this value. (>=)
     :param thresh_NotF : Threshold to apply to NotF, retain below this value (<=).
 
     Default parameters are based on Bartholomew/Sole/Tedstone (thresh_rm, thresh_h) 
@@ -236,7 +236,7 @@ def filter_positions(
     data = data[data['SigH_cm'] <= thresh_h]
 
     # Filter by removing TRACK-interpolated values
-    data = data[data['N'] > thresh_N]
+    data = data[data['N'] >= thresh_N]
 
     # Only retain epochs in which all ambiguities have been fixed (i.e. no unfixed ambiguities left).
     data = data[data['NotF'] <= thresh_NotF]
@@ -350,10 +350,12 @@ def regularise(
 def remove_displacement_outliers(
     data,
     interval : str,
-    iterations : int=2,
-    mt : dict={'x_m':0.08, 'y_m':0.04, 'z_m':0.15},
-    median_win : str='2h',
-    sigma_mult : float=2
+    diff_x_m: float,
+    diff_y_m: float,
+    diff_z_m: float,
+    median_win : str,
+    sigma_mult : float,
+    iterations : int=2
     ):
     """
     Remove outliers by median filtering.
@@ -381,9 +383,9 @@ def remove_displacement_outliers(
             diffs = diffs[diffs.index.isin(data.index)]
             #pdb.set_trace()
             data = data[~(
-                (diffs['x_m'] >= mt['x_m']) | 
-                (diffs['y_m'] >= mt['y_m']) | 
-                (diffs['z_m'] >= mt['z_m'])
+                (diffs['x_m'] >= diff_x_m) | 
+                (diffs['y_m'] >= diff_y_m) | 
+                (diffs['z_m'] >= diff_z_m)
                 )]
         else:
             median = data.filter(items=('x_m','y_m','z_m'), axis=1) \
@@ -414,7 +416,7 @@ def smooth_displacement(
 
     :param data: dataframe with x,y,z columns and regular time frequency
     :param gauss_win_secs: Size of the Gaussian filter window in seconds
-    :param gauss_win_z_mult: Multiplier for size of z filter window
+    :param gauss_win_z_mult: Multiplier for size of z (i.e. height) filter window
     """
     # Make sure data have seconds frequency
     assert data.index.freq.freqstr[-1] == 's'
