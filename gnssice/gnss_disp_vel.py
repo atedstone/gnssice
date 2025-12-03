@@ -20,7 +20,7 @@
 #
 # In ipython:
 #
-#     # %run /path/to/gnss_disp_vel.py -h
+#     # # %run /path/to/gnss_disp_vel.py -h
 #     
 # As a Notebook:
 #
@@ -119,7 +119,10 @@ print('')
 # Output both epoch (new-style) and legacy (old-style) velocities, without pole corrections
 # input_args = ['lev5', '-legacy', '-nocorrect']
 
-input_args = ['lev5', '-tf', '/Users/atedston/scripts/gnssice/gnssice/example_filter_changes.yaml', '-legacy']
+# Arguments with additional inputs
+# input_args = ['lev5', '-tf', 'path/to/my_file.yaml', '-legacy']
+
+input_args = ['lev5', '-tf', '/Users/atedston/scripts/gnssice/gnssice/level2_temporal_filter_example.yaml', '-legacy']
 
 
 # -
@@ -176,13 +179,10 @@ if args.optspath is None:
 
 # +
 def read_yaml(fn):
-    try:
-        with open(fn) as cf_file:
-            pfc = yaml.safe_load( cf_file.read() )
-    except FileNotFoundError:
-            print(f'Filter parameters file not found. ({fn})')
-    return pfc
-
+    with open(fn) as cf_file:
+        pfc = yaml.safe_load( cf_file.read() )
+        return pfc
+    
 # Read the file containing the filter defaults
 if args.f is None:
     fn = Path(os.path.abspath(pp.__file__)).parent / 'level2_parameter_defaults.yaml'
@@ -340,19 +340,6 @@ filter_periods = list(zip(dates_start, dates, filter_ids))
 if args.stake:
     xyz = geod_neu_xy[geod_neu_xy.exclude == False].filter(items=('x_m', 'y_m', 'z_m'), axis='columns')
 
-test = geod_neu_xy.loc['2009-07']
-len(test)
-
-len(test[test.N >= 0])
-
-len(test[test.NotF <= 100])
-
-len(test[test.RMS_mm <= 50])
-
-len(test[test.SigH_cm <= 10])
-
-
-
 # +
 if not args.stake:
 
@@ -504,8 +491,6 @@ filtd = pd.concat(store, axis=0)
 print('*** End of period-based processing ***')
 # -
 
-filtd
-
 # ## Smoothing the whole time series
 
 if not args.stake:
@@ -531,9 +516,9 @@ if not args.stake:
     print('Calculating epoch-to-epoch velocities')
     # Supply the smoothed and interpolated x values, but the unsmoothed, uninterpolated sigma values.
     # Convert TRACK cm sigmas to metres
-    v24h_epoch = pp.calculate_epoch_velocities(filtd_disp['x_m'], filtd['SigE_cm']*0.01, filtd['SigN_cm']*0.01, '1D')#
-    v5d_epoch = pp.calculate_epoch_velocities(filtd_disp['x_m'], filtd['SigE_cm']*0.01, filtd['SigN_cm']*0.01, '5D')
-    v15d_epoch = pp.calculate_epoch_velocities(filtd_disp['x_m'], filtd['SigE_cm']*0.01, filtd['SigN_cm']*0.01, '15D')
+    v24h_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], filtd['SigE_cm']*0.01, filtd['SigN_cm']*0.01, '1D')#
+    v5d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], filtd['SigE_cm']*0.01, filtd['SigN_cm']*0.01, '5D')
+    v15d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], filtd['SigE_cm']*0.01, filtd['SigN_cm']*0.01, '15D')
 
 if not args.stake and args.legacy:
     # Calculate velocities
