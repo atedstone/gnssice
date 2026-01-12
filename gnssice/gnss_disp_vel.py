@@ -20,7 +20,7 @@
 #
 # In ipython:
 #
-#     # # %run /path/to/gnss_disp_vel.py -h
+#     # # # # # # %run /path/to/gnss_disp_vel.py -h
 #     
 # As a Notebook:
 #
@@ -68,6 +68,7 @@ from scipy.stats import mode
 from copy import deepcopy
 from glob import glob
 import yaml
+import re
 
 from gnssice import pp
 
@@ -122,7 +123,8 @@ print('')
 # Arguments with additional inputs
 # input_args = ['lev5', '-tf', 'path/to/my_file.yaml', '-legacy']
 
-input_args = ['lev5', '-tf', '/Users/atedston/scripts/gnssice/gnssice/level2_temporal_filter_example.yaml', '-legacy']
+#input_args = ['lev5', '-tf', '/Users/atedston/scripts/gnssice/gnssice/level2_temporal_filter_example.yaml', '-legacy']
+input_args = ['lev2', '-legacy', '-tf', '/scratch/gps_2009_2013_v3/level2/lev2/temporal_filter_variations_lev2.yaml']
 
 
 # -
@@ -200,19 +202,54 @@ else:
 # ## Load Level-1 data
 
 # +
-level1_path = os.path.join(os.environ['GNSS_L1DIR'], args.site, '*_geod.parquet')
-f = glob(level1_path)
-if len(f) == 0:
-    raise FileNotFoundError(f'No level-1 file found for {args.site}.')
-elif len(f) > 1:
-    raise ValueError(f'More than one level-1 file found for {args.site}.')
+#level1_path = os.path.join(os.environ['GNSS_L1DIR'], args.site, '*_geod.parquet')
+# level1_path = os.path.join(os.environ['GNSS_L1DIR'], args.site, '*_geod.parquet')
+# f = glob(level1_path)
+# if len(f) == 0:
+#     raise FileNotFoundError(f'No level-1 file found for {args.site}.')
+# elif len(f) > 1:
+#     raise ValueError(f'More than one level-1 file found for {args.site}.')
+# else:
+#     f = f[0]
+
+level1_path = os.path.join(os.environ['GNSS_L1DIR'], args.site)
+res = [f for f in os.listdir(level1_path) if re.match(pp.REGEX_L1_FILE, f)]
+for f in res:
+    print(f)
+    
+if len(res) > 1:
+    raise ValueError('More than one 24h velocity file found.')
+elif len(res) == 0:
+    raise ValueError('No v24h file found.')
 else:
-    f = f[0]
+    f = res[0]
+    
 print(f'Loading Level-1 file: {f}...')
 
-geod = pd.read_parquet(f.strip())
+geod = pd.read_parquet(os.path.join(level1_path, f.strip()))
 geod = pp.update_legacy_geod_col_names(geod)
 # -
+
+geod.columns
+
+import seaborn as sns
+
+# +
+plt.figure()
+#geod.N.plot(marker='.', linestyle='none')
+#plt.plot(geod[geod.index.year == 2010].RMS_mm, geod[geod.index.year == 2010].SigE_cm, '.')
+#plt.hist(geod[geod.index.year == 2009].RMS_mm, range=(0, 100))
+#plt.yscale('log')
+#plt.hist(geod[geod.index.year == 2009].N, bins=np.arange(0,13,1))
+#plt.hist(geod[geod.index.year == 2010].N, bins=np.arange(0,13,1),alpha=0.2)
+plt.hist(geod[geod.index.year == 2009].SigH_cm, bins=np.arange(0, 60, 5))
+plt.hist(geod[geod.index.year == 2010].SigH_cm,alpha=0.2, bins=np.arange(0, 60, 5))
+
+#sns.jointplot(x=geod.NotF, y=geod.N)
+# -
+
+print(len(geod[geod.index.year == 2010]))
+print(len(geod[(geod.index.year == 2010) & (geod.NotF <= 3)]))
 
 # ## Convert coordinates to local north-east-up
 # This section calculates coordinates in metres relative to the installation origin of the site.
@@ -350,10 +387,9 @@ if not args.stake:
         fcfg = config_sets[fp[2]]
         data_here = geod_neu_xy.loc[fp[0]:fp[1]]
 
-        print(fcfg)
-
         print('')
         print('FILTER PARAMETERS PERIOD: {0}-{1}'.format(fp[0], fp[1]))
+        print(fcfg)
         
         ## Identify periods of (i) continuous occupations, (ii) daily occupations, (iii) no occupation
     
@@ -397,12 +433,23 @@ if not args.stake:
             """ The filtering processes for continuous observations. """
             # Do initial filtering
             print('Filtering out bad positions (according to RMS etc)')
+            n = len(df)
+            print(f'\t Starting with {n} positions')
             df = pp.filter_positions(df, 
                          fcfg['filter_positions_continuous']['rms'],
                          fcfg['filter_positions_continuous']['h'],
                          fcfg['filter_positions_continuous']['N'], 
                          fcfg['filter_positions_continuous']['NotF']
                         )
+
+            nn = len(df)
+            p = np.round(100 / n * nn, 0)
+            print(f'\t {nn} ({p} %) left after applying filter criteria')
+            if nn == 0:
+                return None
+
+            
+                
             df = pp.remove_displacement_outliers(df, 
                                                  args.sample_freq,
                                                  fcfg['remove_displacement_outliers']['diff_x_m'],
@@ -412,6 +459,12 @@ if not args.stake:
                                                  fcfg['remove_displacement_outliers']['sigma_mult'],
                                                  iterations=fcfg['remove_displacement_outliers'].get('iterations', 2)
                                                 )
+            nnn = len(df)
+            p = np.round(100 / n * nnn, 0)
+            print(f'\t {nnn} ({p} %)left after removing displacement outliers')
+            if nnn == 0:
+                return None
+                
             return df
     
         # Count number of daily observations
@@ -479,21 +532,30 @@ if not args.stake:
                 pass
             else:
                 raise ValueError('Unknown occupation type.')
-    
-            # Make sure that we only save back data for the period,
-            # without any data which may have been prepended/appended
-            # to help with filtering edge effects.
-            pxyz = pxyz[d_st:d_en]
-    
-            store.append(pxyz)
+
+            if pxyz is not None:
+                # Make sure that we only save back data for the period,
+                # without any data which may have been prepended/appended
+                # to help with filtering edge effects.
+                pxyz = pxyz[d_st:d_en]
+        
+                store.append(pxyz)
     
 filtd = pd.concat(store, axis=0)
 print('*** End of period-based processing ***')
 # -
 
+filtd.drop_duplicates()
+
 # ## Smoothing the whole time series
 
 if not args.stake:
+    # check for duplicates, one or two epochs often introduced if using temporally varying window
+    n = len(filtd)
+    filtd = filtd.drop_duplicates()
+    diff = n - len(filtd)
+    print(f'Removed {diff} duplicates')
+    
     # Restore to original frequency and interpolate; adds a flag column named 'interpolated'
     print('Regularising whole series')
     filtd_i = pp.regularise(filtd, args.sample_freq)
