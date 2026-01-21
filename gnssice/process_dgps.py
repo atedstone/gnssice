@@ -21,6 +21,9 @@ def cli():
     parser.add_argument('doy_end', type=int, help='End DOY')
 
     parser.add_argument('-ap', type=float, default=None, nargs=3, help='Rover a-priori coordinates (X Y Z')
+    
+    parser.add_argument('--unsup', action='store_true', help='Run track unsupervised (no quality control, skip SP3 interpolation errors)')
+
 
     args = parser.parse_args()
 
@@ -55,6 +58,6 @@ def cli():
 
     k.apriori = args.ap
 
-    k.track(args.base, args.rover, args.year, args.doy_start, args.doy_end) 
+    k.track(args.base, args.rover, args.year, args.doy_start, args.doy_end, unsup=args.unsup) 
 
     
