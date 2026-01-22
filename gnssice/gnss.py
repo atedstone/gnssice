@@ -1053,6 +1053,7 @@ class Kinematic:
                 
                 # Check track status, this catches non-IOSTAT errors (e.g. SP3 Interpolation errors)
                 if serr != '':
+                    track_error = True
                     if unsup == True:
                         action = 'S'
                         print("Unsupervised processing proceeds, Track showed following error message:")
@@ -1062,7 +1063,6 @@ class Kinematic:
                         plt.show()
                         print("ERROR: Track terminated with the following error message:")
                         print(serr)
-                        track_error = True
                         while True:
                             action = input("[T]ry again, [S]kip day, [H]alt processing session?: ").upper()
                             if action in ['T','S','H']:
@@ -1106,9 +1106,10 @@ class Kinematic:
                 
                 # Do automated quality check, if requested             
                 if use_auto_qa == True:
+                    rms = np.round(np.median(np.array(store_rms)), 2)
                     if unsup == True:
                         keep = True
-                        comment = 'No automatic quality control'
+                        comment = 'No automatic quality control (Med. RMS: {rms:.2f})'
                     elif spearman_threshold != None:
                         data = read_track_neu_file("track.NEU." + rover + ".LC")                      
                         spearman = scipy.stats.spearmanr(data['dEast_m'], data['dNorth_m'])           
@@ -1126,7 +1127,6 @@ class Kinematic:
                             show_plot = True
                         comment = 'Spearman: %s' %spearman[0]
                     elif rms_threshold != None:
-                        rms = np.round(np.median(np.array(store_rms)), 2)
                         print('Median RMS: %s' %rms)
                         if rms < rms_threshold:
                             keep = True

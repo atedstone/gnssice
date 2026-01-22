@@ -22,7 +22,7 @@ def cli():
 
     parser.add_argument('-ap', type=float, default=None, nargs=3, help='Rover a-priori coordinates (X Y Z')
     
-    parser.add_argument('--unsup', action='store_true', help='Run track unsupervised (no quality control, skip SP3 interpolation errors)')
+    parser.add_argument('--unsup', action='store_true', help='Run track unsupervised (no quality control, skip track errors)')
 
 
     args = parser.parse_args()
