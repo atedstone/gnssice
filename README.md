@@ -557,6 +557,11 @@ If this is the first occasion of processing for this site,  run
 calculate_local_origin <site> <Parquet file>
 ```
 
+### Dealing with pole redrills
+
+The semi-automatic functionality developed for this task assumes that the duration of the maintenance period in which the pole redrill took place is very short (minutes). Any displacement which might occur during the maintenance period is ignored. For this reason, do not use the semi-automatic functionality to deal with a site that has fallen over. Instead, specify the correction offset values manually.
+
+
 ### Correcting pole leans
 
 This can be attempted by fitting functions to remove the lean and leave the residual.
@@ -574,7 +579,6 @@ Some hints on a workable processing strategy:
 * Use the script "iteratively" to identify periods which should be excluded.
 * Add exclusion periods to a file named `exclusions_<site>.csv`, located in `$GNSS_L2DIR` (or specify elsewhere with the `-optpath` option of `gnss_disp_vel.py`).
 * Re-run the script.
-* If corrections due to pole re-drilling are needed then this functionality will first need to be implemented, as it was not (yet) needed for the high-elevation ice velocities campaign!
 
 This script can be used in at least two or three ways:
 
@@ -617,6 +621,15 @@ Retain the following files generated during processing for internal (re-)use:
 
 	
 ## Other information
+
+### Modified processing strategies depending on dynamics?
+
+(AT hunch/idea January 2025.)
+
+* The default workflow settings are tuned towards slower-flowing sites, i.e. we are more conservative with the types of movement we allow/expect.
+* It might be that for strong ice-dynamic events/more marginal sites we need to relax some of these constraints. Nearer the margin this should anyway be compensated by the shorter baseline.
+* During reprocessing of the 2009-2013 data in 2025 I am finding that some of the filtering applied at higher sites is leading to loss of the likely real data at the lower, more dynamic sites (e.g. lev2).
+* So, the possible need to change the filtering and smoothing is something to bear in mind if we want to undertake detailed analysis of short-term ice dynamic events around out lake sites.
 
 ### Main differences between Leica and GVT systems
 
@@ -672,6 +685,31 @@ Column descriptions:
 * `# (DD)` becomes `N` when read by the functions in the post-processing module. It specifies the number of double differences per epoch. Per TRACK docs, this should be greater than 0; per Doyle et al. (2014) this could be thresholded at > 4. 
 * `NotF` means 'Not Fixed', i.e. the number of ambiguities that have not been fixed to integers in that epoch.
 * `#BF` means the number of ambiguities that are needed for the data being analysed.
+
+### Column number -> name mapping in TRACK NEU files
+
+ 1: YY
+ 2: MM
+ 3: DD
+ 4: HR
+ 5: MIN
+ 6: Sec
+ 7: DNorth
+ 8: +-
+ 9: dEast
+10: +-
+11: dHeight 
+12: +-
+13: RMS
+14: N
+15: Atm
+16: +-
+17: FractDOY
+18: Epoch
+19: NBF
+20: NotF
+21: Flag
+22: RhoUA
 
 
 ### Trimble files
