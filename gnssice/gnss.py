@@ -876,7 +876,7 @@ class Kinematic:
     def track(self, base, rover, 
         year, doy_start, doy_end, 
         show_plot=True, 
-        use_auto_qa=True, spearman_threshold=None, rms_threshold=22.5):
+        use_auto_qa=True, spearman_threshold=None, rms_threshold=22.5, unsup=False):
         """Wrapper to track kinematic processing.
         
         Processing takes one of two slightly different approaches. With 
@@ -1053,17 +1053,22 @@ class Kinematic:
                 
                 # Check track status, this catches non-IOSTAT errors (e.g. SP3 Interpolation errors)
                 if serr != '':
-                    plt.title('ERROR - track terminated. Close this figure window and respond to command prompt.')
-                    plt.show()
-                    print("ERROR: Track terminated with the following error message:")
-                    print(serr)
                     track_error = True
-                    while True:
-                        action = input("[T]ry again, [S]kip day, [H]alt processing session?: ").upper()
-                        if action in ['T','S','H']:
-                            break
-                        else:
-                            print('Not a valid option.')
+                    if unsup == True:
+                        action = 'S'
+                        print("Unsupervised processing proceeds, Track showed following error message:")
+                        print(serr)
+                    else:
+                        plt.title('ERROR - track terminated. Close this figure window and respond to command prompt.')
+                        plt.show()
+                        print("ERROR: Track terminated with the following error message:")
+                        print(serr)
+                        while True:
+                            action = input("[T]ry again, [S]kip day, [H]alt processing session?: ").upper()
+                            if action in ['T','S','H']:
+                                break
+                            else:
+                                print('Not a valid option.')
                     if action == 'T': # Try again
                         logging.info("!Day " + str(doy).zfill(3) + ": Track failed to process. Retrying day. Error: " + str(serr))
                         retry = True
@@ -1099,9 +1104,13 @@ class Kinematic:
                 if track_error == True:
                     break # break out of while:true loop
                 
-                # Do automated quality check, if requested.
-                if use_auto_qa == True: 
-                    if spearman_threshold != None:
+                # Do automated quality check, if requested             
+                if use_auto_qa == True:
+                    rms = np.round(np.median(np.array(store_rms)), 2)
+                    if unsup == True:
+                        keep = True
+                        comment = 'No automatic quality control (Med. RMS: {rms:.2f})'
+                    elif spearman_threshold != None:
                         data = read_track_neu_file("track.NEU." + rover + ".LC")                      
                         spearman = scipy.stats.spearmanr(data['dEast_m'], data['dNorth_m'])           
                         print('Spearman value: ' + str(spearman[0]))
@@ -1118,7 +1127,6 @@ class Kinematic:
                             show_plot = True
                         comment = 'Spearman: %s' %spearman[0]
                     elif rms_threshold != None:
-                        rms = np.round(np.median(np.array(store_rms)), 2)
                         print('Median RMS: %s' %rms)
                         if rms < rms_threshold:
                             keep = True
