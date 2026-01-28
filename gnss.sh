@@ -18,5 +18,5 @@ export GNSS_RINEX_INSTITUTION='University of Lausanne'
 
 
 # Level 1 and Level 2 final output locations
-export GNSS_L1DIR="/c/Users/cposch1/OneDrive - Université de Lausanne/FlowState/ch2_gnss_processing/gnss_stations/2024-2025/flowstate-gnss-level1"
-export GNSS_L2DIR="/c/Users/cposch1/OneDrive - Université de Lausanne/FlowState/ch2_gnss_processing/gnss_stations/2024-2025/flowstate-gnss-level2"
+export GNSS_L1DIR='/work/atedstone/flowstate-gnss-level1/'
+export GNSS_L2DIR='/work/atedstone/flowstate-gnss-level2/'
