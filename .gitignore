@@ -84,6 +84,7 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+*.ipynb
 
 # IPython
 profile_default/
@@ -141,3 +142,7 @@ gnssice/_version.py
 
 # End of https://www.gitignore.io/api/python
 .DS_Store
+
+
+# Sublime FTP
+sftp-config.json
