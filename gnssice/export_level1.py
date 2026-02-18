@@ -45,6 +45,7 @@ from scipy.stats import mode
 from copy import deepcopy
 from glob import glob
 from pathlib import Path
+import re
 
 # %%
 from gnssice import pp
@@ -85,9 +86,9 @@ def load_sort(args):
     else:
         data_root = os.environ['GNSS_L1DIR']
     if args.geod_file is None:
-        path_to_data = os.path.join(data_root, args.site, pp.REGEX_GEOD_BALE_FILE)
-        print(f'Searching {path_to_data}...')
-        files = glob(path_to_data)
+        path_to_data = os.path.join(data_root, args.site)
+        print(f'Searching {path_to_data} for standard-format parquet bales...')
+        files = [os.path.join(path_to_data, f) for f in os.listdir(path_to_data) if re.match(pp.REGEX_GEOD_BALE_FILE, f)]
     elif len(args.geod_file) == 1:
         print('Using provided wildcard sequence from -geod_file option. Found:')
         files = glob(args.geod_file[0])
@@ -114,7 +115,7 @@ def load_sort(args):
     geod = pd.concat(geod_store, axis=0)
     geod = geod.sort_index()
     ndups = len(geod.index.duplicated())
-    print('Removing {ndups} duplicated rows across the combined data bales')
+    print(f'Removing {ndups} duplicated rows across the combined data bales')
     geod = geod[~geod.index.duplicated()]
 
     print('GEOD head:')
