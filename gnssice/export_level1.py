@@ -114,7 +114,7 @@ def load_sort(args):
     
     geod = pd.concat(geod_store, axis=0)
     geod = geod.sort_index()
-    ndups = len(geod.index.duplicated())
+    ndups = geod.index.duplicated().sum()
     print(f'Removing {ndups} duplicated rows across the combined data bales')
     geod = geod[~geod.index.duplicated()]
 
