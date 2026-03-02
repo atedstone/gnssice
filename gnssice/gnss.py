@@ -136,6 +136,10 @@ def shellcmd(cmd, timeout_seconds=False, retry_n=2, cwd=None):
         except UnicodeDecodeError:
             print('Warning: could not ASCII-decode stdout')
 
+    rc = pid.returncode
+    if rc != 0:
+        raise OSError(stderr)
+
     return (stdout, stderr)
 
         
@@ -314,7 +318,10 @@ def get_orbits(
             cmd = f"sh_get_orbits -orbit {orbit} -yr " + str(year) + " -doy " + \
             str(doy) + " -ndays 1 -nofit"
             print(cmd)
-            sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_SP3_DAILY'])
+            try:
+                sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_SP3_DAILY'])
+            except OSError:
+                pass
             if serr.rstrip() != '':
                 print(serr)
 
@@ -359,8 +366,6 @@ def get_orbits(
                 fn=out_fn
             )
             sout, serr = shellcmd(cmd)
-            if serr != '':
-                raise IOError(serr)
         
     if clearup:
         print("Clearing up log files...")
@@ -423,7 +428,7 @@ def get_ionex(
         doy = get_julian_day(date)
         cmd = f'sh_get_ion -yr {year} -doy {doy} -ndays 1 -ftp_prog wget'
         print(cmd)
-        sout, serr = shellcmd(cmd, cwd=os.environ['GNSS_PATH_IONEX_DAILY'])
+        sout, serr= shellcmd(cmd, cwd=os.environ['GNSS_PATH_IONEX_DAILY'])
     #print(f'Warning: sh_get_ion returned stderr (harmless if "ftp not found"): {serr}')
 
     if overlap:
@@ -630,7 +635,7 @@ class RinexConvert:
             )
         stdout, stderr = shellcmd(cmd, cwd=os.environ['GNSS_WORK'])
 
-        return (stdout, stderr)
+        return
 
 
     def leica2rinex(
