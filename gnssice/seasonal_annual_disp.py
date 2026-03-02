@@ -172,7 +172,7 @@ def calculate_disps(
                 print(period_length)
                 vel = np.abs(np.round(disp / period_length * year_length, 2))
 
-                uncertainty = np.round(pp.calculate_period_vel_uncertainties(disp, vel), 2)
+                uncertainty = np.round(pp.calculate_vel_uncertainties(disp, vel), 2)
 
                 if np.isnan(vel):
                     print(f'nan vel, disp {disp}, {p_st}, {p_en}')
@@ -253,8 +253,7 @@ for site in sites:
 
 store = []
 for site in sites:
-    # os.environ['GNSS_L2DIR']
-    fglob = os.path.join('/scratch/hislide-level2/', f'{site}/{site}_seasonal_annual_*.csv')
+    fglob = os.path.join(os.environ['GNSS_L2DIR'], f'{site}/{site}_seasonal_annual_*.csv')
     fs = glob(fglob)
     if fs is None:
         raise FileNotFoundError(f'No file for {site}.')

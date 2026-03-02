@@ -20,7 +20,7 @@
 #
 # In ipython:
 #
-#     # # # # # # # # # # # %run /path/to/gnss_disp_vel.py -h
+#     # # # # # # # # # # # # %run /path/to/gnss_disp_vel.py -h
 #     
 # As a Notebook:
 #
@@ -231,8 +231,6 @@ print(f'Loading Level-1 file: {f}...')
 geod = pd.read_parquet(os.path.join(level1_path, f.strip()))
 geod = pp.update_legacy_geod_col_names(geod)
 # -
-
-geod.columns
 
 # ## Convert coordinates to local north-east-up
 # This section calculates coordinates in metres relative to the installation origin of the site.
@@ -640,7 +638,7 @@ if not args.stake:
         v15d_reg.to_csv('%s_velocity_15d_legacy.csv' %output_L2_base)
            
     if args.v6h:
-        v_6h = pp.calculate_short_velocities(filtd_disp['x'], '6h')
+        v_6h = pp.calculate_short_velocities(filtd_disp['x_m'], '6h')
         v_6h.to_hdf(output_L2_H5, key='v_6h', format='table')
 
 
@@ -686,7 +684,7 @@ def ax_lim(data,scl_fac):
 
 
 # Plot Y versus X
-# %matplotlib inline
+# %matplotlib widget
 if do_plot:
     plt.figure()
     plt.plot(geod_neu_xy.x_m, geod_neu_xy.y_m, '.', color='gray', alpha=0.3, label=label_geod)
@@ -844,7 +842,7 @@ if do_plot:
     epoch_plotting(v15d_epoch, 
                     data_kwargs=dict(color='tab:red', linewidth=2),
                     error_kwargs=dict(elinewidth=1, ecolor='tab:red', capsize=1))
-    plt.ylim(ax_lim(v24h_reg.v_myr,10)) # n is multiple of std dev
+    plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
     plt.title('%s 24-H, 5-D and 15-D velocity (observational epoch differencing)' %args.site)
     plt.ylabel('m/yr')
     plt.savefig('%s_v24h_5d_epochs.png' %output_L2_base, dpi=300)
@@ -898,7 +896,18 @@ if do_plot:
                         data_kwargs=dict(color='tab:red', linewidth=2),
                         error_kwargs=dict(elinewidth=1, ecolor='tab:red', capsize=1))
         plt.xlim(pd.Timestamp(year, 5, 1), pd.Timestamp(year, 10, 1))
-        plt.ylim(ax_lim(v24h_reg.v_myr,10)) # n is multiple of std dev
+        plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
         plt.title('%s 24-H, 5-D and 15-D velocity, Summer %s (observational epoch differencing)' %(args.site, year))
         plt.ylabel('m/yr')
         plt.savefig('%s_v24h_5d_summer_%s_epochs.png' %(output_L2_base, year), dpi=300)
+
+# #### 6-h velocities
+
+if do_plot and args.v6h:
+    plt.figure()
+    v_6h.plot()
+    plt.title('%s 6-H velocity' %(args.site))
+    plt.ylabel('m/yr')
+    plt.savefig('%s_v6h.png' %(output_L2_base), dpi=300)
+
+
