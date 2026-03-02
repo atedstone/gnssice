@@ -77,10 +77,7 @@ def cli():
         ubx_files = glob(scan_path)
         print('Found {n} files...'.format(n=len(ubx_files)))
         for f in ubx_files:
-            sout, serr = rinex.gvt_to_rinex(f, args.site, os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site))
-            if serr is not None:
-                print(serr)
-                raise IOError
+            rinex.gvt_to_rinex(f, args.site, os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site))
         print('Finished.')
 
     # Single Leica File MDB to RINEX (e.g. L1200 systems):                     
