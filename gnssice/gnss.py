@@ -633,7 +633,7 @@ class RinexConvert:
         Path(output_dir).mkdir(exist_ok=True)
 
         cmd = ( f'convbin -hm {site} -c {site} -ho {observer} -hr {rcvr} '
-                f'-ha {antenna} -ht {site_type} -ti 10 -tt 0.01 -ro "TADJ=1.0 '
+                f'-ha {antenna} -ht {site_type} -ti 10 -tt 0.01 -ro "TADJ=1.0" '
                 f'-o \\%r\\%n0.\\%yo -d {output_dir} {input_file}'
             )
         stdout, stderr = shellcmd(cmd, cwd=os.environ['GNSS_WORK'])
