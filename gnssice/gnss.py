@@ -138,7 +138,10 @@ def shellcmd(cmd, timeout_seconds=False, retry_n=2, cwd=None):
 
     rc = pid.returncode
     if rc != 0:
-        raise OSError(stderr)
+        msg = f'''{cmd} \n
+        exited with return code {rc}. Error buffer:
+        {stderr}'''
+        raise OSError(msg)
 
     return (stdout, stderr)
 
