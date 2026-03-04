@@ -334,10 +334,11 @@ def get_orbits(
                 o=ORBIT_PRODUCTS_TO_SP3_NAME[orbit],
                 wd=gpsweekD(year, doy, wkday_suff=True)
                 )
+            old_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], old_fn)
             if os.path.exists(old_fn):
                 # Rename sh_get_orbits file to yyddd
                 os.rename(
-                    os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], old_fn), 
+                    old_fn, 
                     target_fn
                     )
             else:
