@@ -328,15 +328,20 @@ def get_orbits(
             if serr.rstrip() != '':
                 print(serr)
 
-            # Rename sh_get_orbits file to yyddd
+            # sh_get_orbits returns code 0 even if the orbit file is not available
+            # We therefore have to check whether the file has been downloaded.
             old_fn = '{o}{wd}.sp3'.format(
                 o=ORBIT_PRODUCTS_TO_SP3_NAME[orbit],
                 wd=gpsweekD(year, doy, wkday_suff=True)
                 )
-            os.rename(
-                os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], old_fn), 
-                target_fn
-                )
+            if os.path.exists(old_fn):
+                # Rename sh_get_orbits file to yyddd
+                os.rename(
+                    os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], old_fn), 
+                    target_fn
+                    )
+            else:
+                print(f'\t Warning: no file download available for DOY {doy}')
     
     if overlap:
         print('Overlapping...')
@@ -357,8 +362,17 @@ def get_orbits(
             yday_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy-1))
             tomo_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy+1))
 
-            out_fn = os.path.join(os.environ['GNSS_PATH_SP3_OVERLAP'], make_target_fn(orbit, year, doy))
+            if not os.path.exists(tday_fn):
+                print(f'\t Warning: No SP3 file available for DOY {doy}, skipping overlapping')
+                continue
+            if not os.path.exists(yday_fn):
+                print(f'\t Warning: No SP3 file available for day after DOY {doy}, overlapping anyway')
+                yday_fn = ''
+            if not os.path.exists(tomo_fn):
+                print(f'\t Warning: No SP3 file available for day before DOY {doy}, overlapping anyway')
+                tomo_fn = ''
 
+            out_fn = os.path.join(os.environ['GNSS_PATH_SP3_OVERLAP'], make_target_fn(orbit, year, doy))
             if os.path.exists(out_fn) and not overwrite:
                 continue
 
