@@ -64,7 +64,6 @@ def run_setup(year, doy_start, doy_end, overlap, orbit):
     print_header('Downloading SP3 orbit files, overlapping if requested')
     if overlap:
         _add = ' --overlap'
-        sout, err = shellcmd('ln -s ')
     else:
         _add = ''
     sout, serr = shellcmd(f'get_orbits {year} {doy_start} {doy_end}{_add} --orbit {orbit}')
