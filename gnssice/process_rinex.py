@@ -121,7 +121,10 @@ def cli():
         rinex_files = sorted(glob(os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site, '*o')))
         print('Found {n} files...'.format(n=len(rinex_files)))
         for f in rinex_files:
-            rinex.window_overlap(f, st_timestart='220000', dh=28)
+            try:
+                sout, serr = rinex.window_overlap(f, st_timestart='220000', dh=28)
+            except OSError:
+                print('Warning:', sout)
         print('Finished.')
 
     if (not args.overlap) and (args.file_type == 'R'):
