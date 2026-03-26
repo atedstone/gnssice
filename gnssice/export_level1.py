@@ -86,7 +86,7 @@ def load_sort(args):
     else:
         data_root = os.environ['GNSS_L1DIR']
     if args.geod_file is None:
-        path_to_data = os.path.join(data_root, args.site)
+        path_to_data = os.path.join(data_root, args.site)     
         print(f'Searching {path_to_data} for standard-format parquet bales...')
         files = [os.path.join(path_to_data, f) for f in os.listdir(path_to_data) if re.match(pp.REGEX_GEOD_BALE_FILE, f)]
     elif len(args.geod_file) == 1:
@@ -160,18 +160,19 @@ def export(args, geod):
     return geod_out
 
 def remove_old_files(newfile, args):
-
-    path_to_data = os.path.join(os.environ['GNSS_L1DIR'], args.site, pp.REGEX_L1_FILE)
-    print(f'Searching {path_to_data}...')
-    files = glob(path_to_data)
+    path_to_data = os.path.join(os.environ['GNSS_L1DIR'], args.site)
+    print(f'Searching {path_to_data} for deleting old files...')
+    files = [os.path.join(path_to_data, f) for f in os.listdir(path_to_data) if re.match(pp.REGEX_L1_FILE, f)]
     if len(files) > 1:
         for f in files:
             if Path(f).name == Path(newfile).name:
                 continue
             else:
+                print("here else")
                 print(f'Found old Level-1 file {f}, deleting')
                 os.remove(f)
-
+    else:
+        print('No old Level-1 files found')
     return 
 
 
