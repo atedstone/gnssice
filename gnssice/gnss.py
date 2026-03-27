@@ -281,7 +281,6 @@ def get_orbits(
     start_doy = int(start_doy)
     end_doy = int(end_doy)
 
- 
     # If overlaps requested, automatically extend time range by -1, +1 so that we can do full overlaps.
     if overlap:
         start_doy = max(1, start_doy-1)
@@ -290,7 +289,6 @@ def get_orbits(
         else:
             ylen = 365
         end_doy = min(ylen, end_doy+1)
-        print(start_doy,end_doy)
     
     n_days = end_doy - start_doy + 1 
     if n_days < 0:
@@ -305,7 +303,7 @@ def get_orbits(
         return '{o}{y}{d}0.sp3'.format(
             o=ORBIT_PRODUCTS_TO_SP3_NAME[orbit],
             y=str(year)[-2:],
-            d=str(doy).zfill(3),
+            d=str(doy).zfill(3)
         )
 
     if download:
@@ -365,8 +363,6 @@ def get_orbits(
             tday_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy))
             yday_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy-1))
             tomo_fn = os.path.join(os.environ['GNSS_PATH_SP3_DAILY'], make_target_fn(orbit, year, doy+1))
-
-            print(tday_fn,yday_fn,tomo_fn)
 
             if not os.path.exists(tday_fn):
                 print(f'\t Warning: No SP3 file available for DOY {doy}, skipping overlapping')
