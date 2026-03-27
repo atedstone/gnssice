@@ -168,7 +168,6 @@ def remove_old_files(newfile, args):
             if Path(f).name == Path(newfile).name:
                 continue
             else:
-                print("here else")
                 print(f'Found old Level-1 file {f}, deleting')
                 os.remove(f)
     else:
