@@ -315,6 +315,7 @@ def get_orbits(
             
             # Check whether file exists already
             if os.path.exists(target_fn) and not overwrite:
+                clearup = False
                 continue
             
             # Download the day
@@ -353,7 +354,7 @@ def get_orbits(
         # Start on DOY+1 because we already nudged the start_doy 1 day earlier above. 
         # Similarly, end_doy is now effectively inclusive.
         for doy in range(start_doy+1, end_doy):
-            if start_doy == 1:
+            if start_doy == 1 and doy == start_doy+1:
                 print('Warning: Cannot overlap DOY 001 automatically. No file for this day will be generated.')
                 continue
             if doy == ylen:
