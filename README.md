@@ -240,9 +240,10 @@ If you use `setup_wd` (next section) then all the folders in the `gnss.sh` file 
 
 **To overlap or not?** Short answer = yes, overlap. There is usually no good reason not to. This workflow will handle making overlapping files for you if you ask it to (RINEX, SP3 and IONEX files).
 
-Following is an explanation of how do these preparations manually.
 
-#### Get the orbit files
+#### (Manual preparations:) Get the orbit files
+
+This section is only relevant if not using `setup_wd`.
 
 ```bash
 get_orbits <year> <start doy> <end doy>
@@ -257,21 +258,28 @@ cat igs364.sp3 igs365.sp3 igs001.sp3 > igs365.sp3
 ```
    
 
-#### Optional: Get 3rd party base RINEX files.
+#### Optional: Base RINEX files from GNET (KLSQ)
 
-If required, obtain RINEX files from another site to cover the gaps.
+In Greenland, GNET stations can often serve as the base for post-processing. These data are publicly available via the Danish Government, https://dataforsyningen.dk/data/4804. Data access is via FTP (ftps://ftp.dataforsyningen.dk/GNSS/GRL) following account registration at the Danish Govt at the link above. 
 
-Sometimes 3rd party base files can be downloaded directly from public archives using the GAMIT/GLOBK script `sh_get_rinex`: 
+*Option 1:* Use the collection of three scripts that we've developed to download batches of data - all in the subfolder `rinex_helpers/`. Use them in the following order:
 
-```bash
-sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely
-```
+1. `dk_rinex_generate_list.py --start [date] --end [date]`: Given a date range, this creates a list of download URLs for the FTPS server (default called `urls.txt`).
+2. `dk_rinex_download_list.sh`: Supply with the `urls.txt` file, and make sure your FTPS credentials are placed in the `--user` option of the `curl` command in this script)
+3. `dk_rinex_to_rnx2.sh`: Converts the 1-second RINEX3 files to 10-second RINEX2-named files (contents is still RINEX3).
 
-In Greenland, GNET stations can often serve as the base for post-processing. These data are publicly available via the Danish Government, https://dataforsyningen.dk/data/4804. Data access is via FTP (ftps://ftp.dataforsyningen.dk/GNSS/GRL) following account registration at the Danish Govt. link above. Use an FTP client such as FileZilla to download the files of interest. You will likely need to download the 1-second resolution files. You may then need to reduce them to 10-second resolution using a tool such as `gfzrnx`.
+*Option 2:* Use an FTP client such as FileZilla to download the files of interest. You will likely need to download the 1-second resolution files. You may then need to reduce them to 10-second resolution using a tool such as `gfzrnx`.
+
+*Then:* In both cases, overlap if necessary using `process_rinex`.
+
+
+##### Optional: Base RINEX files from GEUS (LRHP)
 
 Data from stations maintained by the Geological Survey of Denmark and Greenland (GEUS), e.g. at Point 660, can in principle be obtained from the GEUS DataVerse, but if unavailable then individual contact may be needed.
 
-**Important:** all filenames need to be in lowercase. Files from the GEUS DataVerse may be in uppercase, in which it is essential to rename them to lowercase:
+Use the script `rinex_helpers/geus_rinex_download.py`. If the files are shared privately then you will need to supply this script with the access token.
+
+*Important:** Files from the GEUS DataVerse may be in uppercase, in which it is essential to rename them to lowercase:
 
 ```bash
 for a_file in *;do mv -v "$a_file" `echo "$a_file" | tr [:upper:] [:lower:]` ;done;
@@ -292,6 +300,14 @@ Now overlap/window RINEX files using the `R` file type argument to `process_rine
 process_rinex <site> R -overlap
 ```
 
+
+#### Optional: Other 3rd party base RINEX files.
+
+Sometimes 3rd party base files can be downloaded directly from public archives using the GAMIT/GLOBK script `sh_get_rinex`: 
+
+```bash
+sh_get_rinex -archive sopac -yr 2011 -doy 0 -ndays 250 -sites kely
+```
 
 #### IONEX files
 
