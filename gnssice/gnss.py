@@ -1123,7 +1123,10 @@ class Kinematic:
                         break
                     if "Average RMS" in line:
                         print(line.strip("\n"))
-                        store_rms.append(float(re.search(r'[0-9]+\.[0-9]+', line).group()))
+                        try:
+                            store_rms.append(float(re.search(r'[0-9]+\.[0-9]+', line).group()))
+                        except AttributeError:
+                            pass
                 fid.close()
                 if track_error == True:
                     break # break out of while:true loop
