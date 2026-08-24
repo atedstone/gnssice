@@ -654,7 +654,7 @@ class RinexConvert:
             )
         stdout, stderr = shellcmd(cmd, cwd=os.environ['GNSS_WORK'])
 
-        return
+        return (stdout, stderr)
 
 
     def leica2rinex(
