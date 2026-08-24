@@ -20,7 +20,7 @@
 #
 # In ipython:
 #
-#     # # # # # # # # # # # # %run /path/to/gnss_disp_vel.py -h
+#     # # # # # # # # # # # # # # # %run /path/to/gnss_disp_vel.py -h
 #     
 # As a Notebook:
 #
@@ -126,7 +126,7 @@ print('')
 # input_args = ['lev5', '-tf', 'path/to/my_file.yaml', '-legacy']
 
 #input_args = ['lev5', '-tf', '/Users/atedston/scripts/gnssice/gnssice/level2_temporal_filter_example.yaml', '-legacy']
-input_args = ['kanu', '-legacy']
+input_args = ['kanu', '-legacy', '-v6h']
 
 
 # -
@@ -757,13 +757,15 @@ plt.savefig('%s_zyx.png' %output_L2_base, dpi=300, bbox_inches='tight', pad_inch
 # Plot Time versus X
 if do_plot:
     plt.figure()
+    ax = plt.gca()
     if os.path.exists(exclusions_file):
         excl = pd.read_csv(exclusions_file, parse_dates=['excl_start', 'excl_end'])
         for ix, row in excl.iterrows():
             plt.axvspan(row.excl_start, row.excl_end, alpha=0.1, color='tab:red')
     plt.plot(geod_neu_xy.index, geod_neu_xy.x_m, '.', color='gray', alpha=0.3, label=label_geod)
     plt.plot(xyz[xyz.interpolated==False].index, xyz[xyz.interpolated==False].x_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
-    plt.plot(filtd_disp.index, filtd_disp.x_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+    plt.plot(filtd_disp.index, filtd_disp.x_m, '-', color='tab:blue', alpha=0.5, label=label_iterp) 
+    ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
     plt.ylabel('Metres')
     plt.title('%s X - Time' %args.site)
     plt.legend()
@@ -772,6 +774,7 @@ if do_plot:
 # Plot Y versus Time
 if do_plot:
     plt.figure()
+    ax = plt.gca()
     if os.path.exists(exclusions_file):
         excl = pd.read_csv(exclusions_file, parse_dates=['excl_start', 'excl_end'])
         for ix, row in excl.iterrows():
@@ -779,6 +782,7 @@ if do_plot:
     plt.plot(geod_neu_xy.index, geod_neu_xy.y_m, '.', color='gray', alpha=0.3, label=label_geod)
     plt.plot(xyz[xyz.interpolated==False].index, xyz[xyz.interpolated==False].y_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
     plt.plot(filtd_disp.index, filtd_disp.y_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+    ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
     plt.ylim(ax_lim(geod_neu_xy.y_m,3)) # n is multiple of std dev
     plt.ylabel('Metres')
     plt.title('%s Y - Time' %args.site) 
@@ -788,6 +792,7 @@ if do_plot:
 # Plot Time versus Z
 if do_plot:
     plt.figure()
+    ax = plt.gca()
     if os.path.exists(exclusions_file):
         excl = pd.read_csv(exclusions_file, parse_dates=['excl_start', 'excl_end'])
         for ix, row in excl.iterrows():
@@ -795,6 +800,7 @@ if do_plot:
     plt.plot(geod_neu_xy.index, geod_neu_xy.z_m, '.', color='gray', alpha=0.3, label=label_geod)
     plt.plot(xyz[xyz.interpolated==False].index, xyz[xyz.interpolated==False].z_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
     plt.plot(filtd_disp.index, filtd_disp.z_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+    ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
     plt.ylim(ax_lim(geod_neu_xy.z_m,3)) # n is multiple of std dev
     plt.ylabel('Metres')
     plt.title('%s Z - Time' %args.site) 
@@ -806,9 +812,11 @@ if do_plot:
 # Plot 24-hour differenced velocities
 if do_plot and args.legacy:
     plt.figure()    
+    ax = plt.gca()
     plt.errorbar(v24h_reg.index+pd.Timedelta(hours=12), v24h_reg.v_myr, yerr=v24h_reg.v_uncertainty_myr, elinewidth=1.4, ecolor='tab:blue', drawstyle='steps-mid', alpha=0.5)
     plt.errorbar(v5d_reg.index+pd.Timedelta(hours=(5*24)/2), v5d_reg.v_myr, yerr=v5d_reg.v_uncertainty_myr, elinewidth=1, color='k', ecolor='k', drawstyle='steps-mid', linewidth=2)
     plt.errorbar(v15d_reg.index+pd.Timedelta(hours=(15*24)/2), v15d_reg.v_myr, yerr=v15d_reg.v_uncertainty_myr, elinewidth=1, color='tab:red', ecolor='tab:red', drawstyle='steps-mid', linewidth=2)
+    ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
     plt.ylim(ax_lim(v24h_reg.v_myr,10)) # n is multiple of std dev
     plt.title('%s 24-H, 5-D and 15-D velocity (legacy differencing)' %args.site)
     plt.ylabel('m/yr')
@@ -833,6 +841,7 @@ def epoch_plotting(v_ts, data_kwargs=None, error_kwargs=None):
     
 if do_plot:
     plt.figure()
+    ax = plt.gca()
     epoch_plotting(v24h_epoch, 
                     data_kwargs=dict(color='tab:blue'),
                     error_kwargs=dict(elinewidth=1, ecolor='tab:blue', capsize=0, alpha=0.5))
@@ -842,6 +851,7 @@ if do_plot:
     epoch_plotting(v15d_epoch, 
                     data_kwargs=dict(color='tab:red', linewidth=2),
                     error_kwargs=dict(elinewidth=1, ecolor='tab:red', capsize=1))
+    ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
     plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
     plt.title('%s 24-H, 5-D and 15-D velocity (observational epoch differencing)' %args.site)
     plt.ylabel('m/yr')
@@ -863,11 +873,13 @@ if do_plot and args.legacy:
             continue
         
         plt.figure()
+        ax = plt.gca()
         v5d_here = v5d_reg.loc[f'{year}-05-01':f'{year}-10-01']
         v15d_here = v15d_reg.loc[f'{year}-05-01':f'{year}-10-01']
         plt.errorbar(v24h_here.index+pd.Timedelta(hours=12), v24h_here.v_myr, yerr=v24h_here.v_uncertainty_myr, elinewidth=0.2, ecolor='tab:blue', drawstyle='steps-mid', alpha=0.5)
         plt.errorbar(v5d_here.index+pd.Timedelta(hours=(5*24)/2), v5d_here.v_myr, yerr=v5d_here.v_uncertainty_myr, elinewidth=1, color='k', ecolor='k', drawstyle='steps-mid', linewidth=2)
         plt.errorbar(v15d_here.index+pd.Timedelta(hours=(15*24)/2), v15d_here.v_myr, yerr=v15d_here.v_uncertainty_myr, elinewidth=1, color='tab:red', ecolor='tab:red', drawstyle='steps-mid', linewidth=2)
+        ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
         plt.xlim(pd.Timestamp(year, 5, 1), pd.Timestamp(year, 10, 1))
         plt.ylim(ax_lim(v24h_reg.v_myr,10)) # n is multiple of std dev
         plt.title('%s 24-H, 5-D and 15-D velocity, Summer %s (legacy differencing)' %(args.site, year))
@@ -882,6 +894,7 @@ if do_plot:
     years = [ystart] if ystart == yend else range(ystart, yend)
     for year in years:
         plt.figure()
+        ax = plt.gca()
         v24h_here = v24h_epoch.loc[f'{year}-05-01':f'{year}-10-01']
         v5d_here = v5d_epoch.loc[f'{year}-05-01':f'{year}-10-01']
         v15d_here = v15d_epoch.loc[f'{year}-05-01':f'{year}-10-01']
@@ -895,6 +908,7 @@ if do_plot:
         epoch_plotting(v15d_here, 
                         data_kwargs=dict(color='tab:red', linewidth=2),
                         error_kwargs=dict(elinewidth=1, ecolor='tab:red', capsize=1))
+        ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
         plt.xlim(pd.Timestamp(year, 5, 1), pd.Timestamp(year, 10, 1))
         plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
         plt.title('%s 24-H, 5-D and 15-D velocity, Summer %s (observational epoch differencing)' %(args.site, year))
@@ -905,7 +919,9 @@ if do_plot:
 
 if do_plot and args.v6h:
     plt.figure()
+    ax = plt.gca()
     v_6h.plot()
+    ax.format_xdata = mdates.DateFormatter('%Y-%m-%d')
     plt.title('%s 6-H velocity' %(args.site))
     plt.ylabel('m/yr')
     plt.savefig('%s_v6h.png' %(output_L2_base), dpi=300)
