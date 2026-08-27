@@ -72,12 +72,12 @@ args['site']
 
 # %%
 # Load the CSV files, which contain decimal degrees coordinates
-ddf = dd.read_csv(p / '*/*.csv')
+ddf = dd.read_csv(p / '*.csv')
 df_csv = ddf.compute()
 
 # Load the POS files, which don't have decimal degrees but do have sigmas info
 # To fix!: FutureWarning: Support for nested sequences for 'parse_dates' in pd.read_csv is deprecated. Combine the desired columns with pd.to_datetime after parsing instead.
-ddf = dd.read_csv(p / '*/*.pos', sep=r'\s+', skiprows=3, 
+ddf = dd.read_csv(p / '*.pos', sep=r'\s+', skiprows=3, 
                   parse_dates={'ts':['YEAR-MM-DD','HR:MN:SS.SS']}, 
                   date_format={'YEAR-MM-DD':'%y-%m-%d', 'HR:MN:SS.SS':'%H:%M:%S.%f'})
 df_pos = ddf.compute()
