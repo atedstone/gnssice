@@ -47,11 +47,26 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 import dask.dataframe as dd
+import os
 
 from gnssice import pp
 import math
 
-p = Path('/scratch/le5s_2025_ppp')
+sns.set_context('paper')
+
+
+args = {
+    'site': 'lev6'
+}
+
+p = Path(f'/scratch/flowstate-gnss-processing/lev6_2025_PPP/')
+#p = Path(os.path.join(os.environ['GNSS_L1DIR'], args['site']))
+
+path_output_L2 = Path(f'/scratch/flowstate-gnss-level2/lev6/')
+#path_output_L2 = os.path.join(os.environ['GNSS_L2DIR'], args['site'])
+
+# %%
+args['site']
 
 # %% [markdown]
 # ## Load and organise PPP outputs
@@ -144,6 +159,20 @@ plt.plot(df_csv.index, df_csv['Longitude_deg'], marker='.', linestyle='none')
 plt.plot(pos_cln.index, pos_cln['Longitude_deg'], marker='.', linestyle='none', alpha=0.2, color='tab:orange')
 plt.grid()
 
+# %%
+# Compare the uncleaned and cleaned data
+fig, ax = plt.subplots()
+plt.plot(df_csv.index, df_csv['Latitude_deg'], marker='.', linestyle='none')
+plt.plot(pos_cln.index, pos_cln['Latitude_deg'], marker='.', linestyle='none', alpha=0.2, color='tab:orange')
+plt.grid()
+
+# %%
+# Compare the uncleaned and cleaned data
+fig, ax = plt.subplots()
+plt.plot(df_csv['Longitude_deg'], df_csv['Latitude_deg'], marker='.', linestyle='none')
+plt.plot(pos_cln['Longitude_deg'], pos_cln['Latitude_deg'], marker='.', linestyle='none', alpha=0.2, color='tab:orange')
+plt.grid()
+
 # %% [markdown]
 # ### Rotate into local coordinate frame
 #
@@ -165,17 +194,22 @@ neu = pp.calculate_local_neu(pos_cln,
      pos_cln.Longitude_deg.iloc[0:100].mean())
 
 # %%
+neu
+
+# %%
 # Find direction of along-track flow and rotate data along it
 neu['Fract_DOY'] = pos_cln['Fract_DOY']
 directions = pp.calculate_displacement_trajectory(neu)
 r1 = pp.create_rot_matrix(directions)
-xy = pp.rotate_to_displacements(neu['East_m'], neu['North_m'], r1)
+disp = pp.rotate_to_displacements(neu['East_m'], neu['North_m'], r1)
+# Add Z series back in
+disp.loc[:,'z_m'] = neu['z_m']
 
 # %%
 # Plot a check graphic to verify performance of rotation
 # %matplotlib widget
 plt.figure()
-xy['x_m'].plot(marker='.', linestyle='none')
+disp['x_m'].plot(marker='.', linestyle='none')
 plt.ylabel('Along-track displacement (m)')
 
 # %% [markdown]
@@ -203,43 +237,50 @@ plt.ylabel('Along-track displacement (m)')
 # %%
 # Simple height time series
 plt.figure(figsize=(8,4))
-h = pos_cln['Height_m'].rolling('24h', center=True).mean()
+h = disp.z_m.rolling('24h', center=True).mean()
 h.resample('10min').first().plot(marker='.')
 plt.ylabel('height (m)')
 plt.grid()
 plt.xlim('2025-07-01','2025-09-01')
-h.resample('10min').first().to_csv('/Users/atedston/Dropbox/work/papers/gerber_apres/le5s_2025_ppp_height_alpha_v2026-08-19.csv')
+h.resample('10min').first().to_csv('/Users/atedston/Dropbox/work/papers/gerber_apres/le5s_2025_ppp_height_alpha_v2026-08-20.csv')
 
 # %% [markdown]
 # #### Testing velocities using gnssice functionality
 
 # %%
-xy['SigmaE_95%_m'] = pos_cln['SigmaE_95%_m']
-xy['SigmaN_95%_m'] = pos_cln['SigmaN_95%_m']
-xy['z_m'] = pos_cln['Height_m']
+disp['SigmaE_95%_m'] = pos_cln['SigmaE_95%_m']
+disp['SigmaN_95%_m'] = pos_cln['SigmaN_95%_m']
+#xyz['z_m'] = pos_cln['Height_m']
 
 ## Smoothing
 # Restore to original frequency and interpolate; adds a flag column named 'interpolated'
-filtd_i = pp.regularise(xy, '10s')
+filtd_i = pp.regularise(disp, '10s')
 
 # Do Gaussian filtering - this df does not have interpolated column
-# We smooth over a 12 hour window instead of the usual 6 hours
+# We smooth over a 12 hour window instead of the usual 6 hours given the noise of the PPP single-freq solution
 filtd_disp = pp.smooth_displacement(filtd_i, 
                                     21600*2, 
                                     gauss_win_z_mult=4
                                    )
 
+# Sub-set data to retain only original data samples (modified by Gaussian filtering)
+xyz = filtd_disp.filter(items=('x_m', 'y_m', 'z_m'), axis='columns')
+xyz['interpolated'] = filtd_i['interpolated'].astype(bool)
+
 
 # %%
+# %matplotlib widget
 plt.figure()
-xy.x_m.plot()
+xyz.x_m.plot()
 filtd_disp.x_m.plot()
+plt.grid()
 
 # %%
 # Supply the smoothed and interpolated x values, but the unsmoothed, uninterpolated sigma values.
-v1d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '1D', window='3h')
+v24h_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '24h', window='3h')
 v3d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '3D', window='3h')
 v5d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '5D', window='3h')
+v15d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '15D', window='3h')
 
 # %%
 import numpy as np
@@ -257,21 +298,87 @@ def epoch_plotting(v_ts, data_kwargs=None, error_kwargs=None):
     plt.errorbar(df_plotting.index, df_plotting['v_myr'], linestyle='none',
                 yerr=df_plotting['v_unc'], **error_kwargs)
     
-    
-plt.figure()
-epoch_plotting(v1d_epoch, 
+# %matplotlib widget  
+plt.figure(figsize=(8,4))
+epoch_plotting(v24h_epoch, 
                 data_kwargs=dict(color='tab:blue', alpha=0.5),
                 error_kwargs=dict(elinewidth=0.5, ecolor='tab:blue', capsize=0, alpha=0.2))
 # epoch_plotting(v3d_epoch, 
 #                 data_kwargs=dict(color='k', linewidth=2),
 #                 error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
-epoch_plotting(v5d_epoch, 
+epoch_plotting(v15d_epoch, 
                 data_kwargs=dict(color='k', linewidth=1.5),
                 error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
 
+plt.grid()
 #plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
-plt.title('le5s 1-D and 5-D velocity (observational epoch differencing)')
+plt.title(f'{args["site"]} 1-D and 15-D velocity (observational epoch differencing)')
 plt.ylabel('m/yr')
 #plt.savefig('%s_v24h_5d_epochs.png' %output_L2_base, dpi=300)
+
+# %%
+#v1d_epoch.to_csv(f'/scratch/{args["site"]}_2025_ppp_velocity_1d_epochs.csv')
+#v5d_epoch.to_csv(f'/scratch/{args["site"]}_2025_ppp_velocity_5d_epochs.csv')
+
+# %% [markdown]
+# ## Export to disk
+
+# %%
+# Define output filenames
+output_to_pre = '{site}_{ys}_{ds}_{ye}_{de}'.format(
+    site=args['site'],
+    ys=pos_cln.index[0].year,
+    ds=pos_cln.index[0].timetuple().tm_yday,
+    ye=pos_cln.index[-1].year,
+    de=pos_cln.index[-1].timetuple().tm_yday
+)
+
+# Other outputs are appended '_disp' rather than '_geod'.
+output_L2_base = os.path.join(path_output_L2, f'{output_to_pre}_disp')
+output_L2_H5 =  '%s.h5' %output_L2_base
+
+# Make sure that directory gets created, it may not exist yet
+os.makedirs(path_output_L2, exist_ok=True)
+
+
+# %%
+# If there is an existing file, delete it to prevent conflicts.
+if os.path.exists(output_L2_H5):
+    os.remove(output_L2_H5)
+    print('Old main output file found, deleted.')
+
+# %% [markdown]
+# ### Save filters info
+
+# %%
+# ffile = output_L2_base + '_filter_parameters.yaml'
+# with open(ffile, 'w+') as fh:
+#     fh.write('# Record of the level-2 filtering parameters used to generate this Level-2 dataset. \n')
+#     fh.write('# This is a reference-only file, generated from the defaults YAML and any user-specific YAML. \n')
+#     fh.write('# The default filter parameters are found in position 0. \n')
+#     fh.write('# Any periods in which different filter parameters were set are listed starting from position 1. \n')
+#     yaml.dump(config_sets, fh)
+
+# %% [markdown]
+# ### Save displacements
+
+# %%
+# Save displacements to disk
+xyz.to_hdf(output_L2_H5, key='xyz', format='table')
+print('Saved displacements.')
+print('Main output file: %s ' %output_L2_H5)
+
+# %% [markdown]
+# ### Save velocities
+
+# %%
+v24h_epoch.to_hdf(output_L2_H5, key='v_24h_epochs', format='table')
+v5d_epoch.to_hdf(output_L2_H5, key='v_5d_epochs', format='table')
+v15d_epoch.to_hdf(output_L2_H5, key='v_15d_epochs', format='table')
+v24h_epoch.to_csv('%s_velocity_24h_epochs_PPP.csv' %output_L2_base)
+v5d_epoch.to_csv('%s_velocity_5d_epochs_PPP.csv' %output_L2_base)
+v15d_epoch.to_csv('%s_velocity_15d_epochs_PPP.csv' %output_L2_base)
+#v15d_epoch.to_csv('%s_velocity_15d_epochs.csv' %output_L2_base)
+
 
 # %%

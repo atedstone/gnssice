@@ -18,5 +18,6 @@ export GNSS_RINEX_INSTITUTION='University of Lausanne'
 
 
 # Level 1 and Level 2 final output locations
+export GNSS_L0DIR='/work/atedstone/flowstate-gnss-level0/'
 export GNSS_L1DIR='/work/atedstone/flowstate-gnss-level1/'
 export GNSS_L2DIR='/work/atedstone/flowstate-gnss-level2/'

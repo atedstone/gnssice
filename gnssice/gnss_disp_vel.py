@@ -20,7 +20,7 @@
 #
 # In ipython:
 #
-#     # # # # # # # # # # # # %run /path/to/gnss_disp_vel.py -h
+#     # # # # # # # # # # # # # # # %run /path/to/gnss_disp_vel.py -h
 #     
 # As a Notebook:
 #
@@ -126,7 +126,7 @@ print('')
 # input_args = ['lev5', '-tf', 'path/to/my_file.yaml', '-legacy']
 
 #input_args = ['lev5', '-tf', '/Users/atedston/scripts/gnssice/gnssice/level2_temporal_filter_example.yaml', '-legacy']
-input_args = ['kanu', '-legacy']
+input_args = ['lev5', '-f', '/scratch/flowstate-gnss-level2/lev5/default_filter_lev5.yaml', '-tf', '/scratch/flowstate-gnss-level2/lev5/temporal_filter_lev5.yaml']
 
 
 # -
@@ -697,61 +697,62 @@ if do_plot:
     plt.legend()
     plt.savefig('%s_yx.png' %output_L2_base, dpi=300)
 
-# Plot Z versus X
-if do_plot:
-    plt.figure()
-    plt.plot(geod_neu_xy.x_m, geod_neu_xy.z_m, '.', color='gray', alpha=0.3, label=label_geod)
-    plt.plot(xyz.x_m, xyz.z_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
-    plt.plot(filtd.x_m, filtd.z_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
-    plt.ylim(ax_lim(geod_neu_xy.z_m,3)) # n is multiple of std dev
-    plt.xlabel('Metres')
-    plt.ylabel('Metres')
-    plt.title('%s Z - X' %args.site)
-    plt.legend()
-    plt.savefig('%s_zx.png' %output_L2_base, dpi=300)
+# +
+# # Plot Z versus X
+# if do_plot:
+#     plt.figure()
+#     plt.plot(geod_neu_xy.x_m, geod_neu_xy.z_m, '.', color='gray', alpha=0.3, label=label_geod)
+#     plt.plot(xyz.x_m, xyz.z_m, '.', color='tab:purple', alpha=0.3, label=label_xyz)
+#     plt.plot(filtd.x_m, filtd.z_m, '-', color='tab:blue', alpha=0.5, label=label_iterp)
+#     plt.ylim(ax_lim(geod_neu_xy.z_m,3)) # n is multiple of std dev
+#     plt.xlabel('Metres')
+#     plt.ylabel('Metres')
+#     plt.title('%s Z - X' %args.site)
+#     plt.legend()
+#     plt.savefig('%s_zx.png' %output_L2_base, dpi=300)
 
 # +
-# 3D Plot ZYX
-x = filtd.x_m
-y = filtd.y_m
-z = filtd.z_m
-s = 3
-t_num = mdates.date2num(filtd.index.to_pydatetime())
-norm = plt.Normalize(vmin=t_num.min(), vmax=t_num.max())
-cmap = plt.cm.viridis
+# # 3D Plot ZYX
+# x = filtd.x_m
+# y = filtd.y_m
+# z = filtd.z_m
+# s = 3
+# t_num = mdates.date2num(filtd.index.to_pydatetime())
+# norm = plt.Normalize(vmin=t_num.min(), vmax=t_num.max())
+# cmap = plt.cm.viridis
 
-views = [
-    dict(elev=45, azim=65),
-    dict(elev=5, azim=90),
-    dict(elev=75, azim=90),
-]
+# views = [
+#     dict(elev=45, azim=65),
+#     dict(elev=5, azim=90),
+#     dict(elev=75, azim=90),
+# ]
 
-fig = plt.figure(figsize=(15, 6))
-fig.subplots_adjust(right=1.15)
-axes = []
-scatters = []
-for i, v in enumerate(views, start=1):
-    ax = fig.add_subplot(1, 3, i, projection='3d')
-    sc = ax.scatter(x, y, z, c=t_num, s=s, cmap=cmap, norm=norm, alpha=0.25, edgecolor='none')
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
-    ax.set_zlabel('Z (m)')
-    ax.set_ylim(ax_lim(y, 5))
-    ax.invert_xaxis()
-    ax.invert_yaxis()
-    ax.view_init(elev=v['elev'], azim=v['azim'])
-    axes.append(ax)
-    scatters.append(sc)
-    ax.tick_params(labelsize=10)
+# fig = plt.figure(figsize=(15, 6))
+# fig.subplots_adjust(right=1.15)
+# axes = []
+# scatters = []
+# for i, v in enumerate(views, start=1):
+#     ax = fig.add_subplot(1, 3, i, projection='3d')
+#     sc = ax.scatter(x, y, z, c=t_num, s=s, cmap=cmap, norm=norm, alpha=0.25, edgecolor='none')
+#     ax.set_xlabel('X (m)')
+#     ax.set_ylabel('Y (m)')
+#     ax.set_zlabel('Z (m)')
+#     ax.set_ylim(ax_lim(y, 5))
+#     ax.invert_xaxis()
+#     ax.invert_yaxis()
+#     ax.view_init(elev=v['elev'], azim=v['azim'])
+#     axes.append(ax)
+#     scatters.append(sc)
+#     ax.tick_params(labelsize=10)
 
-sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-sm.set_array([])
-cbar = fig.colorbar(sm, ax=axes, pad=0.02, shrink=0.7, location='right')
-cbar.formatter = FuncFormatter(lambda val, loc: mdates.num2date(val).strftime('%Y-%m-%d'))
-cbar.update_ticks()
+# sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+# sm.set_array([])
+# cbar = fig.colorbar(sm, ax=axes, pad=0.02, shrink=0.7, location='right')
+# cbar.formatter = FuncFormatter(lambda val, loc: mdates.num2date(val).strftime('%Y-%m-%d'))
+# cbar.update_ticks()
 
-plt.tight_layout()
-plt.savefig('%s_zyx.png' %output_L2_base, dpi=300, bbox_inches='tight', pad_inches=0.2)
+# plt.tight_layout()
+# plt.savefig('%s_zyx.png' %output_L2_base, dpi=300, bbox_inches='tight', pad_inches=0.2)
 # -
 
 # Plot Time versus X
