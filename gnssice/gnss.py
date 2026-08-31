@@ -259,7 +259,7 @@ def get_orbits(
     year: int, 
     start_doy: int, 
     end_doy: int, 
-    orbit: str='codm',
+    orbit: str='igsf',
     download=True,
     overlap: bool=False,
     clearup: bool=True,
@@ -648,10 +648,11 @@ class RinexConvert:
         output_dir = os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], site)
         Path(output_dir).mkdir(exist_ok=True)
 
-        cmd = ( f'convbin -hm {site} -c {site} -ho {observer} -hr {rcvr} '
-                f'-ha {antenna} -ht {site_type} -ti 10 -tt 0.01 -ro "TADJ=1.0" '
+        cmd = ( f'convbin -hm {site} -c {site} -ho "{observer}" -hr "{rcvr}" '
+                f'-ha "{antenna}" -ht {site_type} -ti 10 -tt 0.01 -ro "TADJ=1.0" '
                 f'-o \\%r\\%n0.\\%yo -d {output_dir} {input_file}'
             )
+        print(cmd)
         stdout, stderr = shellcmd(cmd, cwd=os.environ['GNSS_WORK'])
 
         return (stdout, stderr)
@@ -855,7 +856,7 @@ class RinexConvert:
 
         if os.path.exists(f_out) and not overwrite:
             print(f'{f_out} exists, skipping')
-            return None
+            return (None, None)
 
         # Allow incomplete overlaps so that we can start processing on first day of series
         if not os.path.exists(f_prev):
@@ -882,7 +883,7 @@ class RinexConvert:
         )
         print(cmd)
         sout, serr = shellcmd(cmd)     
-        return(sout, serr)
+        return (sout, serr)
         
         
        
@@ -1078,15 +1079,18 @@ class Kinematic:
                 # Check track status, this catches non-IOSTAT errors (e.g. SP3 Interpolation errors)
                 if serr != '':
                     track_error = True
+                    # Get the more useful error info from the .out file
+                    cmd = f'tail -n 3 {outf}'
+                    msg, _ = shellcmd(cmd, cwd=os.environ['GNSS_WORK'])
+                    print(f"ERROR: Track terminated: {serr}:")
+                    print(f"Last 3 lines of {outf}: {msg}")
                     if unsup == True:
                         action = 'S'
-                        print("Unsupervised processing proceeds, Track showed following error message:")
-                        print(serr)
+                        print(f"Unsupervised processing proceeds...")
+                        print(msg)
                     else:
                         plt.title('ERROR - track terminated. Close this figure window and respond to command prompt.')
                         plt.show()
-                        print("ERROR: Track terminated with the following error message:")
-                        print(serr)
                         while True:
                             action = input("[T]ry again, [S]kip day, [H]alt processing session?: ").upper()
                             if action in ['T','S','H']:
@@ -1134,9 +1138,16 @@ class Kinematic:
                 # Do automated quality check, if requested             
                 if use_auto_qa == True:
                     rms = np.round(np.median(np.array(store_rms)), 2)
+                    
+                    if np.isnan(rms):
+                        track_error = True
+                        print('ERROR: Track RMS values reported as NaN.')
+                    else:
+                        track_error = False
+
                     if unsup == True:
                         keep = True
-                        comment = 'No automatic quality control (Med. RMS: {rms:.2f})'
+                        comment = 'Unsupervised quality control (Med. RMS: {rms:.2f})'
                     elif spearman_threshold != None:
                         data = read_track_neu_file("track.NEU." + rover + ".LC")                      
                         spearman = scipy.stats.spearmanr(data['dEast_m'], data['dNorth_m'])           
@@ -1171,14 +1182,16 @@ class Kinematic:
                 else:
                     __show_plot = show_plot
 
-                # Save a scatter plot, also display subject to above.
-                plot_fname = "track.NEU." + rover + ".LC"
-                save_plot_to = '{r}_{b}_{y}_{d}_{ftype}.png'.format(ftype='NEU', **save_opts)
-                plot_track_output(base, rover, doy, 
-                                fname=plot_fname,
-                                display=__show_plot,
-                                save_to=save_plot_to)
-                
+                # Only plot data if there are any to plot....
+                if not track_error:
+                    # Save a scatter plot, also display subject to above.
+                    plot_fname = "track.NEU." + rover + ".LC"
+                    save_plot_to = '{r}_{b}_{y}_{d}_{ftype}.png'.format(ftype='NEU', **save_opts)
+                    plot_track_output(base, rover, doy, 
+                                    fname=plot_fname,
+                                    display=__show_plot,
+                                    save_to=save_plot_to)
+                    
                 # Do manual quality check if automatic not on or if automatic test failed.
                 if use_auto_qa == False or (use_auto_qa == True and keep == False):
                     keep = confirm("Keep these results? (press Enter to accept, n to reject ",resp=True)
@@ -1232,6 +1245,24 @@ class Kinematic:
                     '{r}_{b}_{y}_{d}.out'.format(**save_opts), 
                     os.path.join(output_dir, '{r}_{b}_{y}_{d}.out'.format(**save_opts))
                     )
+            else:
+                print("Restoring previous day's LC file")
+                n = 1
+                while True:
+                    prev_opts = dict(r=rover, b=base, y=year, d=str(doy-n).zfill(3))
+                    try:
+                        shutil.copy(
+                            os.path.join(output_dir, '{r}_{b}_{y}_{d}_GEOD.dat'.format(**prev_opts)),
+                            'track.GEOD.{0}.LC'.format(rover), 
+                            )
+                    except FileNotFoundError:
+                        if n < 10:
+                            n += 1
+                            continue
+                        else:
+                            raise FileNotFoundError
+                    break
+
             
         print("Batch finished.")
     

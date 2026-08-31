@@ -23,8 +23,7 @@
   <S08> <S01> -<S02> <S03>  
    
  site_stats
- <S08> 10 10 10 1 1 1
-# <S08> 100 100 100 10 10 10 
+ <S08> 1 1 1 0.01 0.01 0.01
  
  bf_set 2 40
 
@@ -36,7 +35,7 @@
   <S07> .000 .000 .000 TWIVC6150 C
   <S08> .000 .000 .000 LEIAX1202GG C
 
- antmod_file /work/atedstone/gnss_config/igs14_2215_plus.atx
+ antmod_file /work/atedstone/gnss_config/igs14_2247_plus.atx
 
  atm_modelc VMF3
 

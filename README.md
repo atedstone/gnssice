@@ -173,6 +173,8 @@ This package wraps TRACK, part of GAMIT/GLOBK: http://geoweb.mit.edu/gg/. Usage 
 
 You should check that the Gamit tables are sufficiently up to date for your captured GPS epochs. If they are not, update the GLOBK/Gamit installation following their instructions.
 
+In particular, make sure to follow their instructions on authentication to EarthData/CDDIS - most easily achieved with a .netrc file.
+
 
 #### RINEX utilities
 
@@ -250,6 +252,12 @@ get_orbits <year> <start doy> <end doy>
 ```
 
 Add `-overlap` if running the workflow with overlapping daily RINEX files.
+
+Note that 'CODF' and 'CODM' orbits, which are multi-constellation and so in principle good for Cryologger/GVT processing, seem to provoke a lot of SP3 interpolation errors. To my understanding, multi-constellation SP3 files remain somewhat 'experimental'. So we are better off relying on GPS-only processing using IGS finl orbits instead.
+
+You can change the orbit by supplying the `-orbit` keyword.
+
+2026.08.26: actually, looks like COF orbit SP3 interpolation errors are confined to a few days. When procesing with the correct constellation codes in the obs_file directive of track, comparing the RMS of the NEU.dat files processed with IGSF versus CODF suggests lower RMS. There are also lots of NotF but that is presumably because of the shear number of satellites.
 	 
 N.b. don't attempt this over a change in year, e.g. start of 360 and end of 4. Instead do two calls. The only problem will then be that days 365 and 1 don't contain the next and previous days data respectively. Just copy and paste from the relevant files into the next, or on unix command line use cat, e.g:
 
@@ -637,6 +645,17 @@ Retain the following files generated during processing for internal (re-)use:
 
 	
 ## Other information
+
+### RINEX GNSS constellation identification codes
+
+* G: GPS (United States)
+* R: GLONASS (Russia)
+* E: Galileo (European Union)
+* C: BeiDou (China)
+* J: QZSS (Japan)
+* I: NavIC / IRNSS (India)
+* S: SBAS (Satellite-Based Augmentation Systems like WAAS, EGNOS)
+* M: Mixed (used in files containing data from multiple constellations simultaneously)
 
 ### Modified processing strategies depending on dynamics?
 

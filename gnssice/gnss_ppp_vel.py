@@ -56,13 +56,17 @@ sns.set_context('paper')
 
 
 args = {
-    'site': 'le5s'
+    'site': 'lev6'
 }
+
+#p = Path(f'/scratch/flowstate-gnss-processing/lev6_2025_PPP/')
+p = Path(os.path.join(os.environ['GNSS_L1DIR'], args['site']))
+
+#path_output_L2 = Path(f'/scratch/flowstate-gnss-level2/lev6/')
+path_output_L2 = os.path.join(os.environ['GNSS_L2DIR'], args['site'])
 
 #p = Path(f'/Users/atedston/scratch/flowstate-gnss-processing/{args["site"]}')
 p = Path(os.path.join(os.environ['GNSS_L1DIR'], args['site']))
-
-path_output_L2 = os.path.join(os.environ['GNSS_L2DIR'], args['site'])
 
 # %%
 args['site']
@@ -279,6 +283,7 @@ plt.grid()
 v24h_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '24h', window='3h')
 v3d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '3D', window='3h')
 v5d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '5D', window='3h')
+v15d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '15D', window='3h')
 
 # %%
 import numpy as np
@@ -296,7 +301,7 @@ def epoch_plotting(v_ts, data_kwargs=None, error_kwargs=None):
     plt.errorbar(df_plotting.index, df_plotting['v_myr'], linestyle='none',
                 yerr=df_plotting['v_unc'], **error_kwargs)
     
-# %matplotlib inline    
+
 plt.figure(figsize=(8,4))
 epoch_plotting(v24h_epoch, 
                 data_kwargs=dict(color='tab:blue', alpha=0.5),
@@ -304,13 +309,16 @@ epoch_plotting(v24h_epoch,
 # epoch_plotting(v3d_epoch, 
 #                 data_kwargs=dict(color='k', linewidth=2),
 #                 error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
-epoch_plotting(v3d_epoch, 
+
+epoch_plotting(v15d_epoch, 
                 data_kwargs=dict(color='k', linewidth=1.5),
                 error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
 
 plt.grid()
 #plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
-plt.title(f'{args["site"]} 1-D and 5-D velocity (observational epoch differencing)')
+
+plt.title(f'{args["site"]} 1-D and 15-D velocity (observational epoch differencing)')
+
 plt.ylabel('m/yr')
 #plt.savefig('%s_v24h_5d_epochs.png' %output_L2_base, dpi=300)
 
@@ -372,9 +380,11 @@ print('Main output file: %s ' %output_L2_H5)
 # %%
 v24h_epoch.to_hdf(output_L2_H5, key='v_24h_epochs', format='table')
 v5d_epoch.to_hdf(output_L2_H5, key='v_5d_epochs', format='table')
-#v15d_epoch.to_hdf(output_L2_H5, key='v_15d_epochs', format='table')
-v24h_epoch.to_csv('%s_velocity_24h_epochs.csv' %output_L2_base)
-v5d_epoch.to_csv('%s_velocity_5d_epochs.csv' %output_L2_base)
+v15d_epoch.to_hdf(output_L2_H5, key='v_15d_epochs', format='table')
+v24h_epoch.to_csv('%s_velocity_24h_epochs_PPP.csv' %output_L2_base)
+v5d_epoch.to_csv('%s_velocity_5d_epochs_PPP.csv' %output_L2_base)
+v15d_epoch.to_csv('%s_velocity_15d_epochs_PPP.csv' %output_L2_base)
+
 #v15d_epoch.to_csv('%s_velocity_15d_epochs.csv' %output_L2_base)
 
 
