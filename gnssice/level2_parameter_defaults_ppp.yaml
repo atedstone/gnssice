@@ -1,0 +1,15 @@
+# Default Level-2 parameters for PPP (NRCan CSRS-PPP .csv/.pos) inputs.
+# Used by gnss_vel.py when the input type is 'ppp' and no -f file is supplied.
+# Values originate from gnss_ppp_vel.py (le5s/ilhn 2025 single-frequency processing).
+
+filter_positions_ppp:
+  # Retain epochs with 95% sigmas strictly below these values (cm).
+  sig_n_cm: 25
+  sig_e_cm: 25
+  # After the sigma cut, retain only days with strictly more epochs than this.
+  min_daily_obs: 500
+
+smooth_displacement:
+  # 12 h window (TRACK default is 6 h) given the noise of PPP solutions.
+  gauss_win_secs: 43200
+  gauss_win_z_mult: 4
