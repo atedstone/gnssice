@@ -49,24 +49,21 @@ from pathlib import Path
 import dask.dataframe as dd
 import os
 
-from gnssice import pp
+from gnssice import pp, ppp
 import math
 
 sns.set_context('paper')
 
 
 args = {
-    'site': 'lev6'
+    'site': 'ilhn'
 }
 
-#p = Path(f'/scratch/flowstate-gnss-processing/lev6_2025_PPP/')
-p = Path(os.path.join(os.environ['GNSS_L1DIR'], args['site']))
+p = Path(f'/Users/atedston/scratch/flowstate-gnss-level1/ilhn/*/')
+#p = Path(os.path.join(os.environ['GNSS_L1DIR'], args['site']))
 
-#path_output_L2 = Path(f'/scratch/flowstate-gnss-level2/lev6/')
+#path_output_L2 = Path(f'/scratch/flowstate-gnss-level2/ilhn/')
 path_output_L2 = os.path.join(os.environ['GNSS_L2DIR'], args['site'])
-
-#p = Path(f'/Users/atedston/scratch/flowstate-gnss-processing/{args["site"]}')
-p = Path(os.path.join(os.environ['GNSS_L1DIR'], args['site']))
 
 # %%
 args['site']
@@ -75,62 +72,76 @@ args['site']
 # ## Load and organise PPP outputs
 
 # %%
-# Load the CSV files, which contain decimal degrees coordinates
-ddf = dd.read_csv(p / '*.csv')
-df_csv = ddf.compute()
-
-# Load the POS files, which don't have decimal degrees but do have sigmas info
-# To fix!: FutureWarning: Support for nested sequences for 'parse_dates' in pd.read_csv is deprecated. Combine the desired columns with pd.to_datetime after parsing instead.
-ddf = dd.read_csv(p / '*.pos', sep=r'\s+', skiprows=3, 
-                  parse_dates={'ts':['YEAR-MM-DD','HR:MN:SS.SS']}, 
-                  date_format={'YEAR-MM-DD':'%y-%m-%d', 'HR:MN:SS.SS':'%H:%M:%S.%f'})
-df_pos = ddf.compute()
-
-# Check that the dataframes match precisely in length
-assert len(df_csv) == len(df_pos)
-
-# Use the timestamps created from the POS files to set the index of the CSV 
-df_csv.index = df_pos.ts
-df_pos.index = df_pos.ts
-
-# Now sort both on index
-df_csv = df_csv.sort_index()
-df_pos = df_pos.sort_index()
-
-# The PPP outputs contain a single row for the next day, which results in duplicated time stamps
-# ...remove them.
-df_csv = df_csv[~df_pos.index.duplicated()]
-df_pos = df_pos[~df_pos.index.duplicated()]
-
-# Renaming 
-mapping = {
-    'latitude_decimal_degree':'Latitude_deg',
-    'longitude_decimal_degree':'Longitude_deg',
-    'ellipsoidal_height_m':'Height_m',
-    'day_of_year':'DOY',
-    'year':'YY'
-}
-
-# Do the renaming
-df_csv = df_csv.rename(mapping, axis=1)
-
-# Remove the following columns
-drop = ['rcvr_clk_ns', 'decimal_hour']
-df_csv = df_csv.drop(columns=drop)
+csv = ppp.read_csv(p / '*.csv')
+pos = ppp.read_pos(p / '*.pos')
+df = ppp.to_track_format(csv, pos)
 
 # %%
-# Calculate fractional DOY (for correspondence with TRACK outputs)
-fdoy = (df_csv.index.day_of_year) + ((df_csv.index - df_csv.index.floor('D')) / pd.Timedelta(24, 'h'))
-df_csv['Fract_DOY'] = fdoy
+test = dd.read_csv(p / '*.pos', sep=r'\s+', skiprows=3, on_bad_lines='warn')
 
-# Calculate daily seconds elapsed (for correspondence with TRACK outputs)
-daily_seconds_elapsed = (df_csv.index - pd.to_datetime(df_csv.index.date)).total_seconds()
-df_csv['Seconds'] = daily_seconds_elapsed
+# %%
+test = test.compute()
 
-# Add the needed POS columns into the CSV frame
-df_csv['SigmaE_95%_m'] = df_pos['SDLAT(95%)']
-df_csv['SigmaN_95%_m'] = df_pos['SDLON(95%)']
-df_csv['SigmaH_95%_m'] = df_pos['SDHGT(95%)']
+# %%
+test.columns
+
+# %%
+# # Load the CSV files, which contain decimal degrees coordinates
+# ddf = dd.read_csv(p / '*.csv')
+# df_csv = ddf.compute()
+
+# # Load the POS files, which don't have decimal degrees but do have sigmas info
+# # To fix!: FutureWarning: Support for nested sequences for 'parse_dates' in pd.read_csv is deprecated. Combine the desired columns with pd.to_datetime after parsing instead.
+# ddf = dd.read_csv(p / '*.pos', sep=r'\s+', skiprows=3, 
+#                   parse_dates={'ts':['YEAR-MM-DD','HR:MN:SS.SS']}, 
+#                   date_format={'YEAR-MM-DD':'%y-%m-%d', 'HR:MN:SS.SS':'%H:%M:%S.%f'})
+# df_pos = ddf.compute()
+
+# # Check that the dataframes match precisely in length
+# assert len(df_csv) == len(df_pos)
+
+# # Use the timestamps created from the POS files to set the index of the CSV 
+# df_csv.index = df_pos.ts
+# df_pos.index = df_pos.ts
+
+# # Now sort both on index
+# df_csv = df_csv.sort_index()
+# df_pos = df_pos.sort_index()
+
+# # The PPP outputs contain a single row for the next day, which results in duplicated time stamps
+# # ...remove them.
+# df_csv = df_csv[~df_pos.index.duplicated()]
+# df_pos = df_pos[~df_pos.index.duplicated()]
+
+# # Renaming 
+# mapping = {
+#     'latitude_decimal_degree':'Latitude_deg',
+#     'longitude_decimal_degree':'Longitude_deg',
+#     'ellipsoidal_height_m':'Height_m',
+#     'day_of_year':'DOY',
+#     'year':'YY'
+# }
+
+# # Do the renaming
+# df_csv = df_csv.rename(mapping, axis=1)
+
+# # Remove the following columns
+# drop = ['rcvr_clk_ns', 'decimal_hour']
+# df_csv = df_csv.drop(columns=drop)
+
+# %%
+# # Calculate fractional DOY (for correspondence with TRACK outputs)
+# fdoy = (df_csv.index.day_of_year) + ((df_csv.index - df_csv.index.floor('D')) / pd.Timedelta(24, 'h'))
+# df_csv['Fract_DOY'] = fdoy
+
+# # Calculate daily seconds elapsed (for correspondence with TRACK outputs)
+# daily_seconds_elapsed = (df_csv.index - pd.to_datetime(df_csv.index.date)).total_seconds()
+# df_csv['Seconds'] = daily_seconds_elapsed
+
+# # Add the needed POS columns into the CSV frame
+# df_csv['SigmaE_95%_m'] = df_pos['SDLAT(95%)']
+# df_csv['SigmaN_95%_m'] = df_pos['SDLON(95%)']
+# df_csv['SigmaH_95%_m'] = df_pos['SDHGT(95%)']
 
 # %% [markdown]
 # ### Initial cleaning
@@ -138,11 +149,11 @@ df_csv['SigmaH_95%_m'] = df_pos['SDHGT(95%)']
 # %%
 # Plot the east sigmas to get an idea of their magnitude
 plt.figure()
-df_csv['SigmaE_95%_m'].plot()
+df['SigE_cm'].plot()
 
 # %%
 # Do some basic cleaning by filtering on the basis of standard deviation chosen by manual iteration
-pos_cln = df_csv[(df_csv['SigmaN_95%_m'] < 0.25) & (df_csv['SigmaE_95%_m'] < 0.25)]
+pos_cln = df[(df['SigN_cm'] < 25) & (df['SigE_cm'] < 25)]
 
 # Remove days with less than threshold number of observations, threshold based on previous manual examination
 nobs = pos_cln.Longitude_deg.resample('1D').count()
@@ -152,27 +163,27 @@ pos_cln = pos_cln[pos_cln['daily_nobs'] > 500]
 # %%
 # Compare the uncleaned and cleaned data
 fig, ax = plt.subplots()
-df_csv.plot(x='Longitude_deg', y='Latitude_deg', marker='.', linestyle='none', ax=ax)
+df.plot(x='Longitude_deg', y='Latitude_deg', marker='.', linestyle='none', ax=ax)
 pos_cln.plot(x='Longitude_deg', y='Latitude_deg', marker='.', linestyle='none', alpha=0.2, color='tab:orange', ax=ax)
 
 # %%
 # Compare the uncleaned and cleaned data
 fig, ax = plt.subplots()
-plt.plot(df_csv.index, df_csv['Longitude_deg'], marker='.', linestyle='none')
+plt.plot(df.index, df['Longitude_deg'], marker='.', linestyle='none')
 plt.plot(pos_cln.index, pos_cln['Longitude_deg'], marker='.', linestyle='none', alpha=0.2, color='tab:orange')
 plt.grid()
 
 # %%
 # Compare the uncleaned and cleaned data
 fig, ax = plt.subplots()
-plt.plot(df_csv.index, df_csv['Latitude_deg'], marker='.', linestyle='none')
+plt.plot(df.index, df['Latitude_deg'], marker='.', linestyle='none')
 plt.plot(pos_cln.index, pos_cln['Latitude_deg'], marker='.', linestyle='none', alpha=0.2, color='tab:orange')
 plt.grid()
 
 # %%
 # Compare the uncleaned and cleaned data
 fig, ax = plt.subplots()
-plt.plot(df_csv['Longitude_deg'], df_csv['Latitude_deg'], marker='.', linestyle='none')
+plt.plot(df['Longitude_deg'], df['Latitude_deg'], marker='.', linestyle='none')
 plt.plot(pos_cln['Longitude_deg'], pos_cln['Latitude_deg'], marker='.', linestyle='none', alpha=0.2, color='tab:orange')
 plt.grid()
 
@@ -245,14 +256,14 @@ h.resample('10min').first().plot(marker='.')
 plt.ylabel('height (m)')
 plt.grid()
 plt.xlim('2025-07-01','2025-09-01')
-h.resample('10min').first().to_csv('/Users/atedston/Dropbox/work/papers/gerber_apres/le5s_2025_ppp_height_alpha_v2026-08-20.csv')
+h.resample('10min').first().to_csv('/Users/atedston/Dropbox/work/papers/gerber_apres/le5s_2025_ppp_height_alpha_v2026-09-22.csv')
 
 # %% [markdown]
 # #### Testing velocities using gnssice functionality
 
 # %%
-disp['SigmaE_95%_m'] = pos_cln['SigmaE_95%_m']
-disp['SigmaN_95%_m'] = pos_cln['SigmaN_95%_m']
+disp['SigE_cm'] = pos_cln['SigE_cm']
+disp['SigN_cm'] = pos_cln['SigN_cm']
 #xyz['z_m'] = pos_cln['Height_m']
 
 ## Smoothing
@@ -280,54 +291,10 @@ plt.grid()
 
 # %%
 # Supply the smoothed and interpolated x values, but the unsmoothed, uninterpolated sigma values.
-v24h_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '24h', window='3h')
-v3d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '3D', window='3h')
-v5d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '5D', window='3h')
-v15d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigmaE_95%_m'], pos_cln['SigmaN_95%_m'], '15D', window='3h')
-
-# %%
-import numpy as np
-def epoch_plotting(v_ts, data_kwargs=None, error_kwargs=None):
-    # Plot stepped velocities
-    plt.plot(v_ts.index, v_ts['v_myr'], drawstyle='steps-post', **data_kwargs)
-    # Now plot uncertainties. Note that we cannot use the errorbar call to also plot the velocities,
-    # because the steps don't begin in the right places when called with irregularly spaced mid-point timestamps.
-    # This is therefore a different situation to that of regularly spaced velocities and uncertainties.
-    mid_pt_timestamps = (v_ts.index+np.abs(v_ts.index.diff(-1)/2))
-    df_plotting = pd.DataFrame({'v_myr':v_ts.v_myr, 'v_unc':v_ts.v_uncertainty_myr})
-    df_plotting.index = mid_pt_timestamps
-    df_plotting = df_plotting[df_plotting.index.notnull()]
-    df_plotting = df_plotting.dropna()
-    plt.errorbar(df_plotting.index, df_plotting['v_myr'], linestyle='none',
-                yerr=df_plotting['v_unc'], **error_kwargs)
-    
-
-plt.figure(figsize=(8,4))
-epoch_plotting(v24h_epoch, 
-                data_kwargs=dict(color='tab:blue', alpha=0.5),
-                error_kwargs=dict(elinewidth=0.5, ecolor='tab:blue', capsize=0, alpha=0.2))
-# epoch_plotting(v3d_epoch, 
-#                 data_kwargs=dict(color='k', linewidth=2),
-#                 error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
-
-epoch_plotting(v15d_epoch, 
-                data_kwargs=dict(color='k', linewidth=1.5),
-                error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
-
-plt.grid()
-#plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
-
-plt.title(f'{args["site"]} 1-D and 15-D velocity (observational epoch differencing)')
-
-plt.ylabel('m/yr')
-#plt.savefig('%s_v24h_5d_epochs.png' %output_L2_base, dpi=300)
-
-# %%
-#v1d_epoch.to_csv(f'/scratch/{args["site"]}_2025_ppp_velocity_1d_epochs.csv')
-#v5d_epoch.to_csv(f'/scratch/{args["site"]}_2025_ppp_velocity_5d_epochs.csv')
-
-# %% [markdown]
-# ## Export to disk
+v24h_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigE_cm']*0.01, pos_cln['SigN_cm']*0.01, '24h', window='3h')
+v3d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigE_cm']*0.01, pos_cln['SigN_cm']*0.01, '3D', window='3h')
+v5d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigE_cm']*0.01, pos_cln['SigN_cm']*0.01, '5D', window='3h')
+v15d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], pos_cln['SigE_cm']*0.01, pos_cln['SigN_cm']*0.01, '15D', window='3h')
 
 # %%
 # Define output filenames
@@ -352,6 +319,9 @@ os.makedirs(path_output_L2, exist_ok=True)
 if os.path.exists(output_L2_H5):
     os.remove(output_L2_H5)
     print('Old main output file found, deleted.')
+
+# %%
+output_L2_base
 
 # %% [markdown]
 # ### Save filters info
@@ -384,8 +354,53 @@ v15d_epoch.to_hdf(output_L2_H5, key='v_15d_epochs', format='table')
 v24h_epoch.to_csv('%s_velocity_24h_epochs_PPP.csv' %output_L2_base)
 v5d_epoch.to_csv('%s_velocity_5d_epochs_PPP.csv' %output_L2_base)
 v15d_epoch.to_csv('%s_velocity_15d_epochs_PPP.csv' %output_L2_base)
-
 #v15d_epoch.to_csv('%s_velocity_15d_epochs.csv' %output_L2_base)
 
+
+# %% [markdown]
+# ## Plotting
+
+# %%
+import numpy as np
+def epoch_plotting(v_ts, data_kwargs=None, error_kwargs=None):
+    # Plot stepped velocities
+    plt.plot(v_ts.index, v_ts['v_myr'], drawstyle='steps-post', **data_kwargs)
+    # Now plot uncertainties. Note that we cannot use the errorbar call to also plot the velocities,
+    # because the steps don't begin in the right places when called with irregularly spaced mid-point timestamps.
+    # This is therefore a different situation to that of regularly spaced velocities and uncertainties.
+    mid_pt_timestamps = (v_ts.index+np.abs(v_ts.index.diff(-1)/2))
+    df_plotting = pd.DataFrame({'v_myr':v_ts.v_myr, 'v_unc':v_ts.v_uncertainty_myr})
+    df_plotting.index = mid_pt_timestamps
+    df_plotting = df_plotting[df_plotting.index.notnull()]
+    df_plotting = df_plotting.dropna()
+    plt.errorbar(df_plotting.index, df_plotting['v_myr'], linestyle='none',
+                yerr=df_plotting['v_unc'], **error_kwargs)
+    
+# %matplotlib widget  
+plt.figure(figsize=(8,4))
+epoch_plotting(v24h_epoch, 
+                data_kwargs=dict(color='tab:blue', alpha=0.5),
+                error_kwargs=dict(elinewidth=0.5, ecolor='tab:blue', capsize=0, alpha=0.2))
+# epoch_plotting(v3d_epoch, 
+#                 data_kwargs=dict(color='k', linewidth=2),
+#                 error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
+epoch_plotting(v5d_epoch, 
+                data_kwargs=dict(color='k', linewidth=1.5),
+                error_kwargs=dict(elinewidth=1, ecolor='k', capsize=1))
+
+plt.grid()
+#plt.ylim(ax_lim(v24h_epoch.v_myr,10)) # n is multiple of std dev
+plt.title(f'{args["site"]} 1-D and 5-D velocity (observational epoch differencing)')
+plt.ylabel('m/yr')
+plt.savefig('%s_v24h_5d_epochs_ppp.png' %output_L2_base, dpi=300)
+
+# %%
+#v1d_epoch.to_csv(f'/scratch/{args["site"]}_2025_ppp_velocity_1d_epochs.csv')
+#v5d_epoch.to_csv(f'/scratch/{args["site"]}_2025_ppp_velocity_5d_epochs.csv')
+
+# %% [markdown]
+# ## Export to disk
+
+# %%
 
 # %%

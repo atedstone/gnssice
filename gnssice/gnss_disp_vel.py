@@ -55,6 +55,7 @@
 # - Updates and improvements including to pp.py July/August 2025, AJT.
 # - New epoch-by-epoch velocities calculations, Nov. 2025, AJT.
 # - Moved filter parameters to YAML files, Dec. 2025, AJT.
+# - Added new average-based processing for short daily observation blocks, Sep. 2026, AJT.
 #
 #
 
@@ -126,7 +127,8 @@ print('')
 # input_args = ['lev5', '-tf', 'path/to/my_file.yaml', '-legacy']
 
 #input_args = ['lev5', '-tf', '/Users/atedston/scripts/gnssice/gnssice/level2_temporal_filter_example.yaml', '-legacy']
-input_args = ['lev5', '-f', '/scratch/flowstate-gnss-level2/lev5/default_filter_lev5.yaml', '-tf', '/scratch/flowstate-gnss-level2/lev5/temporal_filter_lev5.yaml']
+#input_args = ['lev5', '-f', '/scratch/flowstate-gnss-level2/lev5/default_filter_lev5.yaml', '-tf', '/scratch/flowstate-gnss-level2/lev5/temporal_filter_lev5.yaml']
+input_args = ['le5w']
 
 
 # -
@@ -220,7 +222,7 @@ for f in res:
     print(f)
     
 if len(res) > 1:
-    raise ValueError('More than one 24h velocity file found.')
+    raise ValueError('More than one Level-1 file found.')
 elif len(res) == 0:
     raise ValueError('No v24h file found.')
 else:
@@ -355,8 +357,64 @@ filter_periods = list(zip(dates_start, dates, filter_ids))
 
 # ### Run the filtering
 
+geod_neu_xy
+
 if args.stake:
     xyz = geod_neu_xy[geod_neu_xy.exclude == False].filter(items=('x_m', 'y_m', 'z_m'), axis='columns')
+
+
+def average_positions(df, freq='1D', dim_cols=['x_m', 'y_m', 'z_m', 'SigN_cm', 'SigE_cm'], 
+                   default_reducer='mean', extra_reducers=['std'], trim=None):
+    """
+    Calculate average values by integrating over the desired frequency.
+
+    Intended use is to take short GNSS observation periods (a few hours)
+    and average the position estimates into a single value for the period,
+    for each of the positional dimensions.
+
+    :param df: pd.DataFrame
+    :param freq: str, desired output frequency
+    :param dim_cols: list, names of columns containing the position dimensions.
+    :param extra_reducers: list, name of pandas reduction methods to also run besides mean.
+    :param trim: str, time amount (e.g. 1h) to trim from each side of period before averaging.
+
+    Returns: pd.DataFrame, with columns as indicated in dim_cols (means); 
+    other statistics in columns appended with name of statistic.
+    """
+
+    def _midpts(x):
+        if len(x) > 0:
+            start = x.index[0]
+            finish = x.index[-1]
+            midpt = start + ((finish - start) / 2)
+            #print(midpt, midpt.round(df_freq))
+            midpt = midpt.round(args.sample_freq)
+            return midpt
+        else:
+            return np.nan
+
+    if trim:
+        df = df.loc[df.index[0]+pd.Timedelta(trim):df.index[-1]-pd.Timedelta(trim)]
+    # Get timestamps of midpoint in each resampled block
+    midpts = df[dim_cols[0]].resample(freq).apply(_midpts)
+    midpts.name = None
+        
+
+    store = []
+    for dim in dim_cols:
+        for method in ([default_reducer] + extra_reducers):
+            rs = df[dim].resample('1D').apply(method)
+            rs.index = midpts
+            # time blocks submitted for resampling which do not contain data return NaT: get rid of these
+            rs = rs[rs.index.notna()]
+            if method == default_reducer:
+                rs.name = dim
+            else:
+                rs.name = f'{dim}_{method}'
+            store.append(rs)
+        
+    return pd.DataFrame(store).T
+
 
 # +
 if not args.stake:
@@ -374,7 +432,7 @@ if not args.stake:
         
         ## Identify periods of (i) continuous occupations, (ii) daily occupations, (iii) no occupation
     
-        def occ_type(d, threshold_continuous=1000):
+        def occ_type(d, threshold_continuous=1600):
             """ Identify and label occupation type for each data period.
             
             This function distinguishes between 'episodic'/'daily' 
@@ -398,17 +456,31 @@ if not args.stake:
     
         def process_daily_occups(df):
             """ The filtering processes for episodic/daily observations. """
-            # Find the modal hour of this period's observations
-            df = pp.filter_positions(df, 
-                                     fcfg['filter_positions_episodic']['rms'],
-                                     fcfg['filter_positions_episodic']['h'],
-                                     fcfg['filter_positions_episodic']['N'], 
-                                     fcfg['filter_positions_episodic']['NotF']
-                                    )
-            #occ_time = '%sH' %int(mode(df.index.hour)[0])
-            # Use this modal hour to place the index of the mean positions at day:hour.
-            #df = df.resample('1D', offset=occ_time).mean().rolling('10D', center=True).mean()
-            return df
+
+            # First cull based on 'standard' TRACK statistics
+            if df['RMS_mm'].isna().sum() < 1:
+                df = pp.filter_positions(df, 
+                                         fcfg['filter_positions_episodic']['rms'],
+                                         fcfg['filter_positions_episodic']['h'],
+                                         fcfg['filter_positions_episodic']['N'], 
+                                         fcfg['filter_positions_episodic']['NotF']
+                                        )
+            else:
+                print('Found NaNs in RMS_mm column, skipping filter_positions')
+            if len(df) == 0:
+                print('No positions left after initial filtering')
+                return df
+            # Now calculate single means per day of occupation
+            # The idea here is that poor quality days can be identified by high standard deviations.
+            means = average_positions(df, trim='1h')
+            if len(means) == 0:
+                means = average_positions(df)
+            th = fcfg['filter_positions_episodic']['stddev']
+            keep = means[(means['x_m_std'] < th) & (means['y_m_std'] < th)]
+            df = keep.filter(items=['x_m', 'y_m', 'z_m', 'SigN_cm', 'SigE_cm'], axis='columns')
+            n = len(df)
+            print(f'{n} positions left after daily averaging')
+            return keep
     
         def process_cont_occups(df):
             """ The filtering processes for continuous observations. """
@@ -427,7 +499,7 @@ if not args.stake:
             p = np.round(100 / n * nn, 0)
             print(f'\t {nn} ({p} %) left after applying filter criteria')
             if nn == 0:
-                return None
+                return df
 
             
                 
@@ -502,7 +574,7 @@ if not args.stake:
             if s == 1:
                 # do daily processing
                 print(message.format(type='daily'))
-                #pxyz = process_daily_occups(pxyz)
+                pxyz = process_daily_occups(pxyz)
             elif s == 2:
                 # do continuous processing
                 print(message.format(type='continuous'))
@@ -514,19 +586,18 @@ if not args.stake:
             else:
                 raise ValueError('Unknown occupation type.')
 
-            if pxyz is not None:
+            if len(pxyz) > 0: #is not None:
                 # Make sure that we only save back data for the period,
                 # without any data which may have been prepended/appended
                 # to help with filtering edge effects.
                 pxyz = pxyz[d_st:d_en]
-        
                 store.append(pxyz)
     
 filtd = pd.concat(store, axis=0)
 print('*** End of period-based processing ***')
 # -
 
-filtd.drop_duplicates()
+filtd.columns
 
 # ## Smoothing the whole time series
 
@@ -536,7 +607,7 @@ if not args.stake:
     filtd = filtd.drop_duplicates()
     diff = n - len(filtd)
     print(f'Removed {diff} duplicates')
-    
+
     # Restore to original frequency and interpolate; adds a flag column named 'interpolated'
     print('Regularising whole series')
     filtd_i = pp.regularise(filtd, args.sample_freq)
@@ -554,6 +625,12 @@ if not args.stake:
     #xyz = xyz[filtd_i.interpolated == 0]
 
 # ## Calculate velocities
+
+geod_neu_xy
+
+filtd.tail()
+
+filtd.resample('10s').first().tail()
 
 if not args.stake:
     print('Calculating epoch-to-epoch velocities')
@@ -848,6 +925,8 @@ if do_plot:
     plt.ylabel('m/yr')
     plt.savefig('%s_v24h_5d_epochs.png' %output_L2_base, dpi=300)
 # -
+
+v24h_epoch
 
 # #### Velocities (summer only)
 
