@@ -78,6 +78,29 @@ def create_time_index(
     return ix
 
 
+def calculate_local_origin(
+    data: pd.DataFrame
+    ) -> pd.DataFrame:
+    """
+    Calculate origin coordinates of local cartesian grid.
+    """
+
+    # We have to recalculate local cartesian for pre_res first 100 points as these are not saved in pre_res.
+    pre_res_xyz = ell2xyz(data['Latitude_deg'].iloc[0:100] * (math.pi/180),
+                             data['Longitude_deg'].iloc[0:100] * (math.pi/180),
+                             data['Height_m'].iloc[0:100]) 
+
+    x = np.median(pre_res_xyz['x_m'])
+    y = np.median(pre_res_xyz['y_m'])
+    z = np.median(pre_res_xyz['z_m'])
+
+    lat0 = data['Latitude_deg'].iloc[0:100].median()
+    lon0 = data['Longitude_deg'].iloc[0:100].median()
+
+    df = pd.DataFrame({'x0':[x], 'y0':[y], 'z0':[z], 'lat0':lat0, 'lon0':lon0})
+    return df
+
+
 def calculate_local_neu(
     data : pd.DataFrame,
     x0 : float,
@@ -184,7 +207,6 @@ def correct_pole_changes(
     return d
 
             
-
 def apply_exclusions(
     data : pd.DataFrame,
     exclusion_file : str
@@ -208,41 +230,6 @@ def apply_exclusions(
 
     return data
     
-
-def filter_positions(
-    data : pd.DataFrame,
-    thresh_rms : float,
-    thresh_h : float,
-    thresh_N : int,
-    thresh_NotF : int
-    ) -> pd.DataFrame:
-    """
-    Filter (remove) bad positions based on their RMS, height standard deviation
-    and if flagged as being interpolated by TRACK.
-
-    :param thresh_rms: Threshold RMS value in mm to retain. (<=)
-    :param thresh_h: Threshold height std. deviation in cm to retain. (<=)
-    :param thresh_N: Threshold to apply to column N, retain above this value. (>=)
-    :param thresh_NotF : Threshold to apply to NotF, retain below this value (<=).
-
-    Default parameters are based on Bartholomew/Sole/Tedstone (thresh_rm, thresh_h) 
-    and Doyle 2014 (thresh_N, thresh_NotF).
-    """
-    
-    # Filter by RMS
-    data = data[data['RMS_mm'] <= thresh_rms]
-
-    # Filter by height std. dev.
-    data = data[data['SigH_cm'] <= thresh_h]
-
-    # Filter by removing TRACK-interpolated values
-    data = data[data['N'] >= thresh_N]
-
-    # Only retain epochs in which all ambiguities have been fixed (i.e. no unfixed ambiguities left).
-    data = data[data['NotF'] <= thresh_NotF]
-
-    return data
-
 
 def calculate_displacement_trajectory(
     data: pd.DataFrame,
@@ -319,32 +306,39 @@ def rotate_to_displacements(
     return pd.DataFrame(xy, index=east.index, columns=('x_m', 'y_m'))
 
 
-def regularise(
+def filter_positions(
     data : pd.DataFrame,
-    interval : str,
-    add_flag : str = "interpolated"
+    thresh_rms : float,
+    thresh_h : float,
+    thresh_N : int,
+    thresh_NotF : int
     ) -> pd.DataFrame:
     """
-    Sample the x,y,z input onto the desired frequency and fill gaps with linear 
-    interpolation.
+    Filter (remove) bad positions based on their RMS, height standard deviation
+    and if flagged as being interpolated by TRACK.
 
-    :param data: DataFrame of X,Y,Z, indexed by time.
-    :param interval: pandas Offset string.
-    :param add_flag: None, or name of column to create containing 0 if original 
-        data, 1 if interpolated.
+    :param thresh_rms: Threshold RMS value in mm to retain. (<=)
+    :param thresh_h: Threshold height std. deviation in cm to retain. (<=)
+    :param thresh_N: Threshold to apply to column N, retain above this value. (>=)
+    :param thresh_NotF : Threshold to apply to NotF, retain below this value (<=).
+
+    Default parameters are based on Bartholomew/Sole/Tedstone (thresh_rm, thresh_h) 
+    and Doyle 2014 (thresh_N, thresh_NotF).
     """
-    if add_flag is not None:
-        flag = pd.Series(0, index=data.index, name=add_flag, dtype=np.int32)
-        flag[data.x_m.isna()] = np.nan
-        flag = flag.resample(interval).asfreq()
-
-    data = data.resample(interval).asfreq()
     
-    data_iterp = data.filter(items=('x_m','y_m','z_m'), axis='columns').interpolate()
-    data_iterp = pd.concat((data_iterp, flag), axis='columns')
-    data_iterp.loc[data_iterp[add_flag].isna(), add_flag] = 1
+    # Filter by RMS
+    data = data[data['RMS_mm'] <= thresh_rms]
 
-    return data_iterp
+    # Filter by height std. dev.
+    data = data[data['SigH_cm'] <= thresh_h]
+
+    # Filter by removing TRACK-interpolated values
+    data = data[data['N'] >= thresh_N]
+
+    # Only retain epochs in which all ambiguities have been fixed (i.e. no unfixed ambiguities left).
+    data = data[data['NotF'] <= thresh_NotF]
+
+    return data
 
 
 def remove_displacement_outliers(
@@ -407,6 +401,34 @@ def remove_displacement_outliers(
     return data
 
 
+def regularise(
+    data : pd.DataFrame,
+    interval : str,
+    add_flag : str = "interpolated"
+    ) -> pd.DataFrame:
+    """
+    Sample the x,y,z input onto the desired frequency and fill gaps with linear 
+    interpolation.
+
+    :param data: DataFrame of X,Y,Z, indexed by time.
+    :param interval: pandas Offset string.
+    :param add_flag: None, or name of column to create containing 0 if original 
+        data, 1 if interpolated.
+    """
+    if add_flag is not None:
+        flag = pd.Series(0, index=data.index, name=add_flag, dtype=np.int32)
+        flag[data.x_m.isna()] = np.nan
+        flag = flag.resample(interval).asfreq()
+
+    data = data.resample(interval).asfreq()
+    
+    data_iterp = data.filter(items=('x_m','y_m','z_m'), axis='columns').interpolate()
+    data_iterp = pd.concat((data_iterp, flag), axis='columns')
+    data_iterp.loc[data_iterp[add_flag].isna(), add_flag] = 1
+
+    return data_iterp
+
+
 def smooth_displacement(
     data : pd.DataFrame,
     gauss_win_secs : int,
@@ -433,54 +455,54 @@ def smooth_displacement(
     zs = pd.Series(filtfilt(gaus_coef_z, 1, data.z_m), index=data.index, name='z_m')
     return pd.concat((xs,ys,zs), axis='columns')
 
+## DEPRECATED
+# def position_by_regression(
+#     ser : pd.Series, 
+#     center: bool=False, 
+#     return_stats: bool=False
+#     ) -> float | pd.Series:
+#     """
+#     Estimate value at end of timestamped Series (default) or center (option) using 
+#     ordinary least squares regression through the Series.
 
-def position_by_regression(
-    ser : pd.Series, 
-    center: bool=False, 
-    return_stats: bool=False
-    ) -> float | pd.Series:
-    """
-    Estimate value at end of timestamped Series (default) or center (option) using 
-    ordinary least squares regression through the Series.
+#     Only works with Series containing at least 10 values.
 
-    Only works with Series containing at least 10 values.
+#     Intended to be used in a resampling operation, e.g.:
 
-    Intended to be used in a resampling operation, e.g.:
+#     >>> df.resample('10D').apply(position_by_regression)
 
-    >>> df.resample('10D').apply(position_by_regression)
+#     >>> df.resample('10D').apply(position_by_regression, return_stats=True)
 
-    >>> df.resample('10D').apply(position_by_regression, return_stats=True)
+#     :param center: default is to compute value for last index of Series. If True, compute
+#         value for center timestamp instead.
+#     :param return_stats: if True, return pd.Series containing the computed value, the
+#     OLS m and c parameters, the r-squared value.
 
-    :param center: default is to compute value for last index of Series. If True, compute
-        value for center timestamp instead.
-    :param return_stats: if True, return pd.Series containing the computed value, the
-    OLS m and c parameters, the r-squared value.
+#     """
+#     # OLS regression does not work with NaNs.
+#     ser = ser.dropna()
+#     if len(ser) < 10:
+#         return np.nan
 
-    """
-    # OLS regression does not work with NaNs.
-    ser = ser.dropna()
-    if len(ser) < 10:
-        return np.nan
+#     # Fit model, using Julian calendar as exog
+#     juld = ser.index.to_julian_date()
+#     X = sm.add_constant(juld)
+#     y = ser.values
+#     m = sm.OLS(y, X)
+#     f = m.fit()
 
-    # Fit model, using Julian calendar as exog
-    juld = ser.index.to_julian_date()
-    X = sm.add_constant(juld)
-    y = ser.values
-    m = sm.OLS(y, X)
-    f = m.fit()
+#     # Compute value
+#     if center:
+#         t = juld[0] + ((juld[-1] - juld[0]) / 2)
+#     else:
+#         t = juld[-1]
+#     v = f.params[1] * t + f.params[0]
 
-    # Compute value
-    if center:
-        t = juld[0] + ((juld[-1] - juld[0]) / 2)
-    else:
-        t = juld[-1]
-    v = f.params[1] * t + f.params[0]
-
-    if return_stats:
-        return pd.Series([v, f.params[1], f.params[0], f.rsquared],
-            index=['p', 'param_m', 'param_c', 'r2'])
-    else:
-        return v
+#     if return_stats:
+#         return pd.Series([v, f.params[1], f.params[0], f.rsquared],
+#             index=['p', 'param_m', 'param_c', 'r2'])
+#     else:
+#         return v
 
 
 def detrend_z(
@@ -638,14 +660,18 @@ def calculate_epoch_velocities_and_uncertainties(
     sigma_e : pd.Series,
     sigma_n : pd.Series,
     freq: str,
-    window='3h'
+    window='3h',
+    align_to_midnight=True
     ) -> pd.DataFrame:
     """
     Wrapper function to calculate epoch-to-epoch velocities and their corresponding uncertainties.
 
     """
     # Calculating uncertainties from a time series with irregularly spaced timestamps.
-    epoch_sigmas, epoch_offset_from_midnight = calculate_epoch_sigmas(sigma_e, sigma_n, freq, window, align_to_midnight=True) 
+    if align_to_midnight:
+        epoch_sigmas, epoch_offset_from_midnight = calculate_epoch_sigmas(sigma_e, sigma_n, freq, window, align_to_midnight=True) 
+    else:
+        epoch_sigmas = calculate_epoch_sigmas(sigma_e, sigma_n, freq, window, align_to_midnight=False) 
     # Observed x (along-track displacement) per epoch and corresponding velocities from epoch to epoch.
     epoch_x, epoch_vel = calculate_velocities_from_epochs(x, epoch_sigmas)
     # Velocity uncertainites

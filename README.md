@@ -594,26 +594,26 @@ It's best to write your own script to do this on a case by case basis.
 
 ### Displacements and velocities of batch(es)
 
-**Level-2 data generation:**  Use `gnss_disp_vel.py`. This can be run on the command line or as a Notebook.
+**Level-2 data generation:**  Use `gnss_vel.py`. This can be run on the command line or as a Notebook.
 
 If older data for this site have already been post-processed then a file `rotation_<site>.dat` will exist, defining the coefficients to rotate the coordinates into along/across-TRACK displacement. Place this file in `$GNSS_L2DIR` as indicated above.
 
 Some hints on a workable processing strategy:
 
 * Use the script "iteratively" to identify periods which should be excluded.
-* Add exclusion periods to a file named `exclusions_<site>.csv`, located in `$GNSS_L2DIR` (or specify elsewhere with the `-optpath` option of `gnss_disp_vel.py`).
+* Add exclusion periods to a file named `exclusions_<site>.csv`, located in `$GNSS_L2DIR` (or specify elsewhere with the `-optpath` option of `gnss_vel.py`).
 * Re-run the script.
 
 This script can be used in at least two or three ways:
 
 1. Processing a batch of continuous occupation data. Supply just one parquet file.
-2. For a very short data batch - i.e. where a site has been re-occupied for only minutes to hours - use `gnss_disp_vel.py` with the `-stake` option. This disables the smoothing procedures, as they are only applicable to longer time series data. In this case only `xyz` data will be saved to disk.
+2. For a very short data batch - i.e. where a site has been re-occupied for only minutes to hours - use `gnss_vel.py` with the `-stake` option. This disables the smoothing procedures, as they are only applicable to longer time series data. In this case only `xyz` data will be saved to disk.
 3. Or let the script process both continuous and daily occupation data automatically. Do not provide `-stake`. Check the messages to make sure that each period has been identified correctly.
 
 Running option 3 within an ipython terminal:
 
 ```python
->>> %run gnss_disp_vel.py <site> -f <file1.parquet> <file2.parquet> ...
+>>> %run gnss_vel.py <site> -f <file1.parquet> <file2.parquet> ...
 ```
 
 The script applies different filtering and averaging approaches depending on whether a data period has been occupied continuously or only for a short period (e.g. an hour).

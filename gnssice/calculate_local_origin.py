@@ -28,19 +28,21 @@ def cli():
 
     geod = pd.read_parquet(args.geod_file)
 
-    # We have to recalculate local cartesian for pre_res first 100 points as these are not saved in pre_res.
-    pre_res_xyz = pp.ell2xyz(geod['Latitude_deg'].iloc[0:100] * (math.pi/180),
-                             geod['Longitude_deg'].iloc[0:100] * (math.pi/180),
-                             geod['Height_m'].iloc[0:100]) 
+    df = pp.calculate_local_origin(geod)
 
-    x = np.median(pre_res_xyz['x_m'])
-    y = np.median(pre_res_xyz['y_m'])
-    z = np.median(pre_res_xyz['z_m'])
+    # # We have to recalculate local cartesian for pre_res first 100 points as these are not saved in pre_res.
+    # pre_res_xyz = pp.ell2xyz(geod['Latitude_deg'].iloc[0:100] * (math.pi/180),
+    #                          geod['Longitude_deg'].iloc[0:100] * (math.pi/180),
+    #                          geod['Height_m'].iloc[0:100]) 
 
-    lat0 = geod['Latitude_deg'].iloc[0:100].median()
-    lon0 = geod['Longitude_deg'].iloc[0:100].median()
+    # x = np.median(pre_res_xyz['x_m'])
+    # y = np.median(pre_res_xyz['y_m'])
+    # z = np.median(pre_res_xyz['z_m'])
 
-    # save x,y,z.
-    df = pd.DataFrame({'x0':[x], 'y0':[y], 'z0':[z], 'lat0':lat0, 'lon0':lon0})
+    # lat0 = geod['Latitude_deg'].iloc[0:100].median()
+    # lon0 = geod['Longitude_deg'].iloc[0:100].median()
+
+    # # save x,y,z.
+    # df = pd.DataFrame({'x0':[x], 'y0':[y], 'z0':[z], 'lat0':lat0, 'lon0':lon0})
     Path(output_fn).parent.mkdir(exist_ok=True)
     df.to_csv(output_fn, index=False)
