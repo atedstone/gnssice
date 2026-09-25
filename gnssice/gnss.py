@@ -516,6 +516,7 @@ def read_track_geod_file(
         colspecs=bounds,
     )
 
+    data = data.replace(to_replace=r'\*+', value=np.nan, regex=True)
     data = data.drop(labels=['Flag'], axis=1)
     data = data.apply(pd.to_numeric)
     return data
@@ -569,6 +570,7 @@ def read_track_neu_file(
         colspecs=bounds,
     )
 
+    data = data.replace(to_replace=r'\*+', value=np.nan, regex=True)
     data = data.drop(labels=['Flag'], axis=1)
     data = data.apply(pd.to_numeric)
     return data
@@ -649,7 +651,7 @@ class RinexConvert:
         Path(output_dir).mkdir(exist_ok=True)
 
         cmd = ( f'convbin -hm {site} -c {site} -ho "{observer}" -hr "{rcvr}" '
-                f'-ha "{antenna}" -ht {site_type} -ti 10 -tt 0.01 -ro "TADJ=1.0" '
+                f'-ha "{antenna}" -ht {site_type} -ti 10 -tt 0.01 -ro "-TADJ=1.0" '
                 f'-o \\%r\\%n0.\\%yo -d {output_dir} {input_file}'
             )
         print(cmd)
@@ -1074,7 +1076,16 @@ class Kinematic:
                 print(cmd)
 
                 # Send to track. 
-                sout, serr = shellcmd(cmd, timeout_seconds=1200, retry_n=1, cwd=os.environ['GNSS_WORK'])
+                try:
+                    sout, serr = shellcmd(cmd, timeout_seconds=1200, retry_n=1, cwd=os.environ['GNSS_WORK'])
+                except OSError as err:
+                    print('TRACK ERROR: ')
+                    print(err)
+                    if unsup:
+                        action = 'S'
+                        print('Unsupervised processing proceeds...')
+                    else:
+                        raise err
                 
                 # Check track status, this catches non-IOSTAT errors (e.g. SP3 Interpolation errors)
                 if serr != '':
@@ -1246,22 +1257,24 @@ class Kinematic:
                     os.path.join(output_dir, '{r}_{b}_{y}_{d}.out'.format(**save_opts))
                     )
             else:
-                print("Restoring previous day's LC file")
-                n = 1
-                while True:
-                    prev_opts = dict(r=rover, b=base, y=year, d=str(doy-n).zfill(3))
-                    try:
-                        shutil.copy(
-                            os.path.join(output_dir, '{r}_{b}_{y}_{d}_GEOD.dat'.format(**prev_opts)),
-                            'track.GEOD.{0}.LC'.format(rover), 
-                            )
-                    except FileNotFoundError:
-                        if n < 10:
-                            n += 1
-                            continue
-                        else:
-                            raise FileNotFoundError
-                    break
+                lcf = read_track_geod_file('track.GEOD.{0}.LC'.format(rover))
+                if len(lcf) == 0:
+                    print("Restoring previous day's LC file")
+                    n = 1
+                    while True:
+                        prev_opts = dict(r=rover, b=base, y=year, d=str(doy-n).zfill(3))
+                        try:
+                            shutil.copy(
+                                os.path.join(output_dir, '{r}_{b}_{y}_{d}_GEOD.dat'.format(**prev_opts)),
+                                'track.GEOD.{0}.LC'.format(rover), 
+                                )
+                        except FileNotFoundError:
+                            if n < 10:
+                                n += 1
+                                continue
+                            else:
+                                raise FileNotFoundError
+                        break
 
             
         print("Batch finished.")
