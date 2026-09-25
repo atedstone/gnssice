@@ -3,6 +3,7 @@ filter_positions_episodic:
   h: 10
   N: 3
   NotF: 3
+  stddev: 0.05
 
 filter_positions_continuous:
   rms: 50
