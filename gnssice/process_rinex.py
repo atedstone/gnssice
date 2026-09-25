@@ -75,15 +75,17 @@ def cli():
         scan_path = os.path.join(os.environ['GNSS_PATH_RAWDATA'], args.site, '*.ubx')
         print(f'Scanning {scan_path}')
         ubx_files = glob(scan_path)
-        n = len(ubx_files)
+        n = str(len(ubx_files)).zfill(3)
         print('Found {n} files...'.format(n=n))
-        c = 1
+        c = 0
         for f in ubx_files:
-            print(c.zfill(3) + '/' + n.zfill(3))
+            c += 1
+            print(str(c).zfill(3) + '/' + n)
             try:
-                stdout, stderr = rinex.gvt_to_rinex(f, args.site, os.path.join(os.environ['GNSS_PATH_RINEX_DAILY'], args.site))
-            except OSError:
-                if "no time for output path:" in stderr:
+                stdout, stderr = rinex.gvt_to_rinex(f, args.site)
+            except OSError as err:
+                print(err)
+                if "no time for output path:" in str(err):
                     print('File failed, "no time for output path"')
                     continue
 
