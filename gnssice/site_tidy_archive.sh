@@ -27,19 +27,3 @@ zip track_processing_logs_${site}_${year}.zip processed_track/$site/*.out
 # And move them to a 'central' folder for easy transfer by scp
 mkdir processing_logs
 mv track_processing_logs_${site}_${year}.zip processing_logs/
-
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-# 
