@@ -21,6 +21,7 @@ for f in rinex_daily/$site/*o; do
     rnx2crx $f
     # .gz
     gzip ${f:0:-1}d
+;done
 
 # Zip the processing logs
 zip track_processing_logs_${site}_${year}.zip processed_track/$site/*.out
