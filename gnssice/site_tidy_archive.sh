@@ -17,10 +17,15 @@ year="$2"
 
 # Generate Compact RINEX files
 for f in rinex_daily/$site/*o; do
-    # .yyo to .yyd
-    rnx2crx $f
-    # .gz
-    gzip ${f:0:-1}d;
+    gzf = ${f:0:-1}d.gz
+    if [ ! -f $gzf ]; then 
+        # .yyo to .yyd
+        rnx2crx $f
+        # .gz
+        gzip ${f:0:-1}d;
+    else
+        echo "Skipping $f (d.gz exists)"
+    fi
 done
 
 # Zip the processing logs
