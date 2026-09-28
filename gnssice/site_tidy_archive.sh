@@ -17,7 +17,7 @@ year="$2"
 
 # Generate Compact RINEX files
 for f in rinex_daily/$site/*o; do
-    gzf = ${f:0:-1}d.gz
+    gzf=${f:0:-1}d.gz
     if [ ! -f $gzf ]; then 
         # .yyo to .yyd
         rnx2crx $f
@@ -31,5 +31,5 @@ done
 # Zip the processing logs
 zip track_processing_logs_${site}_${year}.zip processed_track/$site/*.out
 # And move them to a 'central' folder for easy transfer by scp
-mkdir processing_logs
+mkdir -p processing_logs
 mv track_processing_logs_${site}_${year}.zip processing_logs/
