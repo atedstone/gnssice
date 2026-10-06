@@ -31,9 +31,15 @@ def load_multiple_xyz(files):
 
 def make_contiguous(df):
     # Coarsen the time series and interpolate over any gaps.
-    xyzi = xyz.resample('1h').first()
-    original = xyzi.x_m.notna() 
-    xyzi = xyzi.interpolate()
+    df = df[df.interpolated == False]
+    xyzi = df.resample('1h').first()
+    xyzi['x_m'] = xyzi['x_m'].interpolate()
+    # 2026-10-06: the line below seems buggy given there is already an interpolate column in xyz.
+    # original = xyzi.x_m.notna() 
+    # .. therefore rather the line below instead:
+    original = xyzi.interpolated == 0
+    # Also disable the line below
+    #xyzi = xyzi.interpolate()
     xyzi['original'] = original
     return xyzi
 
@@ -42,13 +48,17 @@ def backdate(df, start='2021-05-01', freq='1h', sample=1000):
     # To estimate 1 May to 1 May displacement, for some sites we need to extend
     # the time range a bit.
     if df.index[0] > pd.Timestamp(start):
+    #if diff.days > 1:
         # Make a synthetic time series between 1 May and the start of the series
         synth_ts = pd.date_range(start, df.index[0], freq=freq)
 
         # Use the first n. sampled hours.
-        X = df.index[0:sample].to_julian_date()
+        smpl = df.iloc[0:sample].dropna()
+        #X = df.index[0:sample].to_julian_date()
+        X = smpl.index.to_julian_date()
         X = sm.add_constant(X)
-        y = df.x_m.iloc[0:sample]
+        #y = df.x_m.iloc[0:sample]
+        y = smpl.x_m
         m = sm.OLS(y, X)
         f = m.fit()
 
@@ -62,7 +72,7 @@ def backdate(df, start='2021-05-01', freq='1h', sample=1000):
     else:
         return df
     
-def fwddate(df, end='2024-05-01', freq='1h', sample=1000):
+def fwddate(df, end='2025-05-01', freq='1h', sample=1000):
     # To estimate 1 May to 1 May displacement, for some sites we need to extend
     # the time range a bit.
     if df.index[-1] < pd.Timestamp(end):
@@ -70,9 +80,12 @@ def fwddate(df, end='2024-05-01', freq='1h', sample=1000):
         synth_ts = pd.date_range(df.index[-1], end, freq=freq)
 
         # Use the first n. sampled hours.
-        X = df.index[-sample:-1].to_julian_date()
+        #X = df.index[-sample:-1].to_julian_date()
+        smpl = df.iloc[-sample:-1].dropna()
+        X = smpl.index.to_julian_date()
         X = sm.add_constant(X)
-        y = df.x_m.iloc[-sample:-1]
+        #y = df.x_m.iloc[-sample:-1]
+        y = smpl.x_m
         m = sm.OLS(y, X)
         f = m.fit()
 
@@ -125,7 +138,7 @@ def calculate_disps(
             
             nearest_start = find_nearest_occupation(df, st1)
             diff1 = np.abs((nearest_start - st1).days)
-            print('START', period_name, bounds[0], nearest_start, diff1)
+            print('START', period_name, bounds[0], nearest_start, diff1, st1)
 
             # Create end date and find nearest observation
             if bounds[1][0] < bounds[0][0]:
@@ -140,9 +153,8 @@ def calculate_disps(
             en1 = pd.Timestamp(year_here, bounds[1][0], bounds[1][1], 0, 0) + pd.Timedelta(days=1)
             
             nearest_end = find_nearest_occupation(df, en1)
-            print(nearest_end)
             diff2 = np.abs((nearest_end - en1).days)
-            print('END  ', period_name, bounds[1], nearest_end, diff2)
+            print('END  ', period_name, bounds[1], nearest_end, diff2, en1)
 
             # Check whether this is the last year of observations
             # If it is, then we can't derive annual for this year.
@@ -158,8 +170,13 @@ def calculate_disps(
                 # Observations are within permissible bounds
 
                 # Calculate displacement through period
-                p_st = df.x_m.loc[st1]
-                p_en = df.x_m.loc[en1]
+                try:
+                    p_st = df.x_m.loc[st1]
+                    p_en = df.x_m.loc[en1]
+                except KeyError:
+                    print(f'Warning: one of {st1} or {en1} do not exist in this timeseries.')
+                    continue
+                
                 disp = p_en - p_st
                 disp = np.abs(np.round(disp, 2))
 
@@ -169,7 +186,7 @@ def calculate_disps(
                 else:
                     year_length = 365
                 period_length = (en1 - st1).days # + 1
-                print(period_length)
+                print('\t Period length:', period_length)
                 vel = np.abs(np.round(disp / period_length * year_length, 2))
 
                 uncertainty = np.round(pp.calculate_vel_uncertainties(disp, vel), 2)
@@ -198,8 +215,24 @@ def calculate_disps(
 
 
 # +
-sites = ['f003', 'f004', 'fs05', 'kanu', 'lev5', 'lev6'] #'camp'
+#sites = ['f003', 'f004', 'fs05', 'kanu', 'lev5', 'lev6'] #'camp'
+#sites = ['lev5', 'lev6', 'kanu']
 #sites = ['camp']    
+sites = [
+    'ilhd',
+    'ilhe',
+    'ilhn',
+    'ilhs',
+#    'ilhw',
+    'kanu',
+    'l561',
+#    'l562',
+    'le5n',
+    'le5s',
+#    'le5w',
+    'lev5',
+    'lev6'
+]
     
 # Syntax:: period_name: [(start_month, start_day), (end_month, end_day), tolerance_days]
 periods = {
@@ -207,7 +240,9 @@ periods = {
     'Summer':[(5,1), (8,30), 20],
     'Winter':[(9,1), (4,30), 20],
     'ES':[(5,1), (6,30), 5],
-    'LS':[(7,1), (8,30), 5]
+    'LS':[(7,1), (8,30), 5],
+    'Summer_alt':[(5,1), (9,30), 20], # relevant for flowstate 2025-26 cryologgers
+    'Winter_alt':[(10,1), (4,30), 20]
     }
 # -
 for site in sites:
@@ -219,14 +254,22 @@ for site in sites:
     if len(fn) > 1:
         raise ValueError('More than one Level-2 displacement/velocity file (*_disp.h5) found.')
     elif len(fn) == 0:
-        raise ValueError('No Level-2 displacement/velocity file (*_disp.h5) found.')
+        search_path = os.path.join(os.environ['GNSS_L2DIR'], site, '*_disp_PPP.h5')
+        fn = glob(search_path)
+        if len(fn) > 1:
+            raise ValueError('More than one Level-2 displacement/velocity file (*_disp_PPP.h5) found.')
+        elif len(fn) == 0:
+            raise ValueError('No Level-2 displacement/velocity file (*_disp.h5) found.')
+
     fn = fn[0]    
     
     #xyz = load_multiple_xyz([fn])
     xyz = pd.read_hdf(fn, key='xyz')
+    start_year = xyz.index[0].year
     xyzi = make_contiguous(deepcopy(xyz))
-    xyzi = backdate(xyzi)
-    xyzi = fwddate(xyzi)
+    xyzi = backdate(xyzi, start=f'{start_year}-05-01')
+    end_year = xyz.index[-1].year
+    xyzi = fwddate(xyzi, end=f'{end_year}-05-01')
 
     year_start = xyzi.iloc[0].name.year
     year_end = xyzi.iloc[-1].name.year
@@ -271,6 +314,6 @@ all_data
 vel_m_yr = all_data[all_data.period == 'Annual'].pivot(index='year', values='vel_m_yr', columns='site')
 vel_m_yr
 
-vel_m_yr.plot(marker='o')
+vel_m_yr.plot.bar()
 
 
