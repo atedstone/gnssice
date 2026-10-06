@@ -1,6 +1,9 @@
 """
 Calculate and save origin of local cartesian grid.
 
+Only works with GEOD files - not functional with PPP outputs. For this, 
+use functionality built directly into gnss_vel.py.
+
 """
 
 import pandas as pd
