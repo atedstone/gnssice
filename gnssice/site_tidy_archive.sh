@@ -16,7 +16,7 @@ site="$1"
 year="$2"
 
 # Generate Compact RINEX files
-for f in rinex_daily/$site/*o; do
+for f in rinex_daily/$site/*${f:0:-1}o; do
     gzf=${f:0:-1}d.gz
     if [ ! -f $gzf ]; then 
         # .yyo to .yyd
