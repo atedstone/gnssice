@@ -118,7 +118,7 @@ print('')
 # Arguments with additional inputs
 # input_args = ['lev5', '-tf', 'path/to/my_file.yaml', '-legacy']
 
-input_args = ['le5w', '-tf', '/scratch/flowstate-gnss-level2/le5w/le5w_temporal_filter_track.yaml']
+input_args = ['ilhs']
 
 
 # -
@@ -509,11 +509,6 @@ if not args.noexcl and os.path.exists(exclusions_file):
 else:
     geod_neu_xy['exclude'] = False
 
-geod_neu_xy
-
-plt.figure()
-geod_neu_xy.loc['2025-05'].N.plot(marker='.', linestyle='none')
-
 # ## Apply filtering to each filter-parameters period
 
 # ### Set up filter options per-period
@@ -587,8 +582,6 @@ else:
 
 # ## Smoothing the whole time series
 
-filtd
-
 if not args.stake:
     # check for duplicates, one or two epochs often introduced if using temporally varying window
     n = len(filtd)
@@ -610,12 +603,17 @@ if not args.stake:
     xyz = filtd_disp.filter(items=('x_m', 'y_m', 'z_m'), axis='columns')
     xyz['interpolated'] = filtd_i['interpolated'].astype(bool)
 
-plt.figure()
-geod_neu_xy.SigN_cm.plot(marker='.', linestyle='none')
+    # Save TRACK/PPP reported sigmas at original resolution and without any smoothing
+    # No sigmas will be saved for interpolated displacement epochs -
+    # these will be left as NaN.
+    # Take this opportunity to convert to metres for the sigmas.
+    sigXY = np.sqrt(filtd['SigE_cm']**2 + filtd['SigN_cm']**2) * 0.01
+    sigXY.name = 'sigma_xy_m'
+    sigZ = filtd['SigH_cm'] * 0.01
+    sigZ.name = 'sigma_z_m'
+    xyz = pd.concat([xyz, sigXY, sigZ], axis=1)
 
 # ## Calculate velocities
-
-sig_n
 
 if not args.stake:
 
@@ -628,12 +626,9 @@ if not args.stake:
     
     print('Calculating epoch-to-epoch velocities')
     # Supply the smoothed and interpolated x values, but the unsmoothed, uninterpolated sigma values.
-    # Convert cm sigmas to metres
-    sig_e = filtd['SigE_cm'] * 0.01
-    sig_n = filtd['SigN_cm'] * 0.01
-    v24h_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], sig_e, sig_n, '1D', align_to_midnight=align)
-    v5d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], sig_e, sig_n, '5D', align_to_midnight=align)
-    v15d_epoch = pp.calculate_epoch_velocities_and_uncertainties(filtd_disp['x_m'], sig_e, sig_n, '15D', align_to_midnight=align)
+    v24h_epoch = pp.calculate_epoch_velocities_and_uncertainties(xyz['x_m'], xyz['sigma_xy_m'][xyz['sigma_xy_m'].notna()], '1D', align_to_midnight=align)
+    v5d_epoch = pp.calculate_epoch_velocities_and_uncertainties(xyz['x_m'], xyz['sigma_xy_m'][xyz['sigma_xy_m'].notna()], '5D', align_to_midnight=align)
+    v15d_epoch = pp.calculate_epoch_velocities_and_uncertainties(xyz['x_m'], xyz['sigma_xy_m'][xyz['sigma_xy_m'].notna()], '15D', align_to_midnight=align)
 
 if not args.stake and args.legacy:
     print('Calculating regularised velocities (legacy approach)')

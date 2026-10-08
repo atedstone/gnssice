@@ -408,7 +408,7 @@ def regularise(
     ) -> pd.DataFrame:
     """
     Sample the x,y,z input onto the desired frequency and fill gaps with linear 
-    interpolation.
+    interpolation. 
 
     :param data: DataFrame of X,Y,Z, indexed by time.
     :param interval: pandas Offset string.
@@ -530,8 +530,7 @@ def detrend_z(
 
 
 def calculate_epoch_sigmas(
-    sigmaE,
-    sigmaN,
+    sigma,
     target_freq,
     avg_window,
     align_to_midnight=True
@@ -541,20 +540,28 @@ def calculate_epoch_sigmas(
     temporal frequency of `target_freq`. The minimum gap between epochs
     is at least `target_freq` but may be larger depending on the 
     observations availability. 
+
+    align_to_midnight only aligns the timestamps to midnight, it does not directly
+    affect the period of the day examined. Whether True or False, the operation
+    at the target_freq will start from the first timestamp available in that 
+    target_freq (which may not be midnight) and will extend until that timestamp
+    plus the avg_window duration. Therefore, if the data you supply are, for example,
+    only occupied in the 13h to 18h, then the data examined will be 13h-16h.
     """
 
     # Combine the sigma Series so that we can access them simulataneously
     # in one lookup operation.
-    df = pd.concat({'sig_e':sigmaE, 'sig_n':sigmaN}, axis=1)
+    #df = pd.concat({'sig_e':sigmaE, 'sig_n':sigmaN}, axis=1)
     store = {}
 
-    ptr = df.index[0]
+    ptr = sigma.index[0]
 
     # If aligning, then start the time series at the next day
     # This is because the first day of observations usually does not 
     # start at midnight, yet the velocities calculation will expect a 
     # midnight value to be available.
     if align_to_midnight:
+        # Normalise() operation converts time component to midnight.
         ptr = ptr.normalize() + pd.Timedelta(days=1)
         store_diff = {}
     
@@ -563,7 +570,7 @@ def calculate_epoch_sigmas(
     ## Break from loop as soon as no data are left.
     while True:   
         # Step 1: slice to all data starting at pointer
-        epoch = df.loc[ptr:]
+        epoch = sigma.loc[ptr:]
         if len(epoch) == 0:
             break
         # Step 2: bound the slice by the duration of the averaging window
@@ -572,9 +579,10 @@ def calculate_epoch_sigmas(
             break
 
         # Now calculate the combined sigma
-        se = (epoch.sig_e).mean()
-        sn = (epoch.sig_n).mean()
-        ss = np.sqrt(se**2 + sn**2)
+        #se = (epoch.sig_e).mean()
+        #sn = (epoch.sig_n).mean()
+        #ss = np.sqrt(se**2 + sn**2)
+        ss = epoch.mean()
 
         # Timestamp of epoch
         d = epoch.index[0]
@@ -657,8 +665,7 @@ def calculate_vel_uncertainties(
 
 def calculate_epoch_velocities_and_uncertainties(
     x : pd.Series,
-    sigma_e : pd.Series,
-    sigma_n : pd.Series,
+    sigmas : pd.Series,
     freq: str,
     window='3h',
     align_to_midnight=True
@@ -666,12 +673,15 @@ def calculate_epoch_velocities_and_uncertainties(
     """
     Wrapper function to calculate epoch-to-epoch velocities and their corresponding uncertainties.
 
+    Highest recommended frequency is 24h/1day, at higher temporal resolution than this then
+    the function is unlikely to work as expected.
+
     """
     # Calculating uncertainties from a time series with irregularly spaced timestamps.
     if align_to_midnight:
-        epoch_sigmas, epoch_offset_from_midnight = calculate_epoch_sigmas(sigma_e, sigma_n, freq, window, align_to_midnight=True) 
+        epoch_sigmas, epoch_offset_from_midnight = calculate_epoch_sigmas(sigmas, freq, window, align_to_midnight=True) 
     else:
-        epoch_sigmas = calculate_epoch_sigmas(sigma_e, sigma_n, freq, window, align_to_midnight=False) 
+        epoch_sigmas = calculate_epoch_sigmas(sigmas, freq, window, align_to_midnight=False) 
     # Observed x (along-track displacement) per epoch and corresponding velocities from epoch to epoch.
     epoch_x, epoch_vel = calculate_velocities_from_epochs(x, epoch_sigmas)
     # Velocity uncertainites
