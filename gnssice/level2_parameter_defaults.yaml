@@ -1,3 +1,6 @@
+occupation_type:
+  threshold_n_obs: 1600
+
 filter_positions_episodic:
   rms: 50
   h: 10

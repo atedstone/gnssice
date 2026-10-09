@@ -118,7 +118,7 @@ print('')
 # Arguments with additional inputs
 # input_args = ['lev5', '-tf', 'path/to/my_file.yaml', '-legacy']
 
-input_args = ['ilhs']
+input_args = ['l562', '-input', 'ppp', '-tf', '/scratch/flowstate-gnss-level2/l562/l562_temporal_filter_ppp.yaml'] # '-f', '/scratch/flowstate-gnss-level2/lev5/default_filter_lev5.yaml']
 
 
 # -
@@ -260,7 +260,7 @@ def filter_ppp(df, fcfg):
     return df
 
 
-def average_positions(df, freq='1D', dim_cols=['x_m', 'y_m', 'z_m', 'SigN_cm', 'SigE_cm'], 
+def average_positions(df, freq='1D', dim_cols=['x_m', 'y_m', 'z_m', 'SigN_cm', 'SigE_cm', 'SigH_cm'], 
                    default_reducer='mean', extra_reducers=['std'], trim=None):
     """
     Calculate average values by integrating over the desired frequency.
@@ -313,7 +313,7 @@ def filter_track(data_here, fcfg):
     then applies the corresponding filtering to each period.
     Returns list of filtered DataFrames.
     """
-    def occ_type(d, threshold_continuous=1600):
+    def occ_type(d, threshold_continuous=fcfg['occupation_type']['threshold_n_obs']): #2026-10-09:1600
         """ Label occupation type from number of observations per day.
         2 = continuous (e.g. 10 sec) occupation, 1 = 'episodic', e.g. for an hour, 0 = no occupation
         """
@@ -324,7 +324,7 @@ def filter_track(data_here, fcfg):
     def process_daily_occups(df):
         """ The filtering processes for episodic/daily observations. """
         # First cull based on 'standard' TRACK statistics
-        if df['RMS_mm'].isna().sum() < 1:
+        if df['RMS_mm'].isna().sum() < (len(df)/10):
             df = pp.filter_positions(df, 
                                      fcfg['filter_positions_episodic']['rms'],
                                      fcfg['filter_positions_episodic']['h'],
@@ -521,7 +521,7 @@ filter_opts = pd.Series(0, geod_neu_xy.index)
 mandatory_keys = ['date_start', 'date_finish']
 # Filter sections that may be modified per period, by input type.
 supported_keys = {
-    'track': ['filter_positions_episodic', 'filter_positions_continuous', 'remove_displacement_outliers'],
+    'track': ['occupation_type', 'filter_positions_episodic', 'filter_positions_continuous', 'remove_displacement_outliers'],
     'ppp': ['filter_positions_ppp'],
 }[input_type]
 
@@ -560,6 +560,8 @@ filter_periods = list(zip(dates_start, dates, filter_ids))
 
 # ### Run the filtering
 
+geod_neu_xy
+
 if args.stake:
     xyz = geod_neu_xy[geod_neu_xy.exclude == False].filter(items=('x_m', 'y_m', 'z_m'), axis='columns')
 else:
@@ -568,7 +570,7 @@ else:
         fcfg = config_sets[fp[2]]
         data_here = geod_neu_xy.loc[fp[0]:fp[1]]
         print('')
-        print('FILTER PARAMETERS PERIOD: {0}-{1}'.format(fp[0], fp[1]))
+        print('FILTER PARAMETERS PERIOD: {0} -- {1}'.format(fp[0], fp[1]))
         print(fcfg)
         if input_type == 'track':
             store.extend(filter_track(data_here, fcfg))
@@ -612,6 +614,8 @@ if not args.stake:
     sigZ = filtd['SigH_cm'] * 0.01
     sigZ.name = 'sigma_z_m'
     xyz = pd.concat([xyz, sigXY, sigZ], axis=1)
+
+filtd
 
 # ## Calculate velocities
 
@@ -800,7 +804,7 @@ if do_plot and args.legacy:
     ax.set_ylim(ax_lim(v24h_reg.v_myr, 10))
     ax.set_title(f'{args.site} 24-H, 5-D and 15-D velocity (legacy differencing)')
     ax.set_ylabel('m/yr')
-    fig.savefig(f'{plot_base}_v24h_5d_legacy.png', dpi=300)
+    fig.savefig(f'{plot_base}_v24h_5d_15d_legacy.png', dpi=300)
 
 if do_plot:
     fig, ax = plt.subplots()
@@ -816,7 +820,7 @@ if do_plot:
     ax.set_ylim(ax_lim(v24h_epoch.v_myr, 10))
     ax.set_title(f'{args.site} 24-H, 5-D and 15-D velocity (observational epoch differencing)')
     ax.set_ylabel('m/yr')
-    fig.savefig(f'{plot_base}_v24h_5d_epochs.png', dpi=300)
+    fig.savefig(f'{plot_base}_v24h_5d_15d_epochs.png', dpi=300)
 
 # ### Velocities (summer only)
 
@@ -835,7 +839,7 @@ if do_plot and args.legacy:
         ax.set_ylim(ax_lim(v24h_reg.v_myr, 10))
         ax.set_title(f'{args.site} 24-H, 5-D and 15-D velocity, Summer {year} (legacy differencing)')
         ax.set_ylabel('m/yr')
-        fig.savefig(f'{plot_base}_v24h_5d_summer_{year}_legacy.png', dpi=300)
+        fig.savefig(f'{plot_base}_v24h_5d_15d_summer_{year}_legacy.png', dpi=300)
 
 if do_plot:
     for year in summer_years(v24h_epoch.index):
@@ -858,7 +862,7 @@ if do_plot:
         ax.set_ylim(ax_lim(v24h_epoch.v_myr, 10))
         ax.set_title(f'{args.site} 24-H, 5-D and 15-D velocity, Summer {year} (observational epoch differencing)')
         ax.set_ylabel('m/yr')
-        fig.savefig(f'{plot_base}_v24h_5d_summer_{year}_epochs.png', dpi=300)
+        fig.savefig(f'{plot_base}_v24h_5d_15d_summer_{year}_epochs.png', dpi=300)
 
 # ### 6-h velocities
 
